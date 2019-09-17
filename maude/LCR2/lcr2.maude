@@ -1,0 +1,186 @@
+set include BOOL off .
+
+--- load ~/maude/rltool/rltool.maude .
+
+--- load full-maude.maude
+
+--- loop init .
+
+mod LCR2 is protecting NAT . protecting LIST{Nat} . protecting MAP{Nat, Nat} . protecting SET{Nat} .
+	sorts Status MsgMSet State NatList Set Pred .
+	subsort Status < MsgMSet .
+	subsort Nat < Set .
+
+	--- Arithmetic operations
+	op Null : -> Nat [ctor] . --- Null variable for Naturals used to mark no leaders chosen
+	op _%_ : Nat Nat -> Nat . --- Modular arithmetic
+	op _-_ : Nat Nat -> Nat . --- Natural subtraction
+	op checkZero(_) : Nat -> Pred . --- Used in modular arithmetic to check if Nat - 1 == 0
+	
+	--- Boolean ctors and operations
+	op tt : -> Pred [ctor] . --- used in place of true
+	op ff : -> Pred [ctor] . --- used in place of false
+	op !_ : Pred -> Pred . --- Boolean Not
+
+	--- Sets
+	op _inn_ : Nat Set{Nat} -> Pred .
+
+	--- Status ctor (true/false, Leader ID)
+	op (_,_) : Pred Nat -> Status [ctor] .
+
+	--- Map
+	op mapSize(_) : Map{Nat,Nat} -> Nat . --- returns the size of the map (number ele)
+	op maxStateMap(_) : State -> Nat . --- returns the maximum value of a map in the state
+	op maxMap(_,_,_) : Map{Nat,Nat} Nat Nat -> Nat . --- returns the max value of a map
+	op uniqueMap(_,_,_) : Map{Nat,Nat} Set{Nat} Nat -> Pred . --- Checks if a map is unique
+
+	--- States used to mark the current state of computation
+	op { send: _ | target: _ | status: _ | ring: _ } : Nat Nat Status Map{Nat,Nat} -> State [ctor] .
+	op < send: _ | target: _ | status: _ | ring: _ > : Nat Nat Status Map{Nat,Nat} -> State [ctor] . --- while running
+	op [ send: _ | target: _ | status: _ | ring: _ ] : Nat Nat Status Map{Nat,Nat} -> State [ctor] . --- terminating
+
+	--- These are invariants
+	op leaderFoundInState : State -> Pred [ctor] . --- returns whether we have found a leader
+
+	--- misc
+	op getLeader(_) : State -> Nat . --- returns the leaderID
+
+	--- used for rltool
+	op validSendTargetIDX(_,_,_) : Map{Nat,Nat} Nat Nat -> Pred . --- checks if two indices are in range
+
+	--- Variable declarations
+	vars N M O : Nat .	
+	var R MM MM' : Map{Nat,Nat} .
+	vars sendIdx targetIdx : Nat .
+	var S : Status .
+	var LL : List{Nat} .
+	var SS : Set{Nat} .
+
+	--- Modular arithmetic
+	eq 1 - 1 = 0 .
+	eq (0 - N) % M = M - N .
+	eq s(M) - 0 = s(M) .
+	eq s(M) - s(N) = M - N .
+	eq N % M =
+		if M == 0 then
+			0
+		else if N == M then
+			0
+		else if N < M then
+			N
+		else
+			(N - M) % M
+		fi
+		fi
+		fi .
+	
+	--- Easy way to negate
+	var B : Pred .
+	eq !(B) = 
+		if B == tt then
+			ff
+		else
+			tt
+		fi .
+
+
+	--- Set membership
+	eq N inn (N, SS) = tt .
+	eq N inn SS = ff [owise] .
+
+
+	--- UniqueMap
+	eq uniqueMap(R, SS, N) =
+		if N == mapSize(R) then
+			tt
+		else if R[N] inn SS == tt then
+			ff
+		else
+			uniqueMap(R, union(R[N], SS), N + 1)
+		fi
+		fi .
+
+	--- Preds
+	ceq leaderFoundInState([ send: sendIdx | target: targetIdx | status: S | ring: R ]) = ff if S == (ff, Null) .
+	eq leaderFoundInState([ send: sendIdx | target: targetIdx | status: S | ring: R ]) = tt [owise] .
+
+	--- check map size
+	eq mapSize(empty) = 0 .
+	eq mapSize(MM, MM') = 1 + mapSize(MM') .
+
+	--- maxStateMap: return largest value in a state
+	eq maxStateMap(< send: sendIdx | target: targetIdx | status: S | ring: R >) = maxMap(R, 0, 0) .
+	eq maxStateMap([ send: sendIdx | target: targetIdx | status: S | ring: R ]) = maxMap(R, 0, 0) .
+	--- helper function for maxStateMap which only uses the map
+	eq maxMap(MM, N, M) = 
+		if N == mapSize(MM) then
+			M
+		else if MM[N] > M and N < mapSize(MM) then
+			maxMap(MM, N + 1, MM[N])
+		else if MM[N] < M and N < mapSize(MM) then
+			maxMap(MM, N + 1, M)
+		else
+			maxMap(MM, N + 1, M)
+		fi
+		fi
+		fi .
+	
+	--- indexes into the Ring to get the value given an Index
+	eq getLeader([ send: sendIdx | target: targetIdx | status: (B, N) | ring: R ]) = R[N] .
+
+	eq checkZero(N) =
+		if N - 1 == 0 then
+			tt
+		else
+			ff
+		fi .
+	
+	eq validSendTargetIDX(R, N, M) =
+		--- if N == (M + 1) % mapSize(R) and N < mapSize(R) and M < mapSize(R) then
+		if N < mapSize(R) and M < mapSize(R) then
+			tt
+		else
+			ff
+		fi .
+
+	--- this is the initial state
+	crl [init] : { send: sendIdx | target: targetIdx | status: S | ring: R } =>
+		< send: sendIdx | target: targetIdx | status: S | ring: R >
+			if sendIdx == (targetIdx + 1) % mapSize(R) .
+
+	--- sendIdx > targetIDX one case for 0 and the other for all others
+	crl [send_GT_target1] : < send: sendIdx | target: targetIdx | status: S | ring: R > =>
+		< send: sendIdx | target: (targetIdx - 1) % mapSize(R) | status: S | ring: R >
+			if R[sendIdx] > R[targetIdx] and (ff == checkZero(targetIdx)) and sendIdx < mapSize(R) and targetIdx < mapSize(R) .
+	crl [send_GT_target2] : < send: sendIdx | target: targetIdx | status: S | ring: R > =>
+		< send: sendIdx | target: mapSize(R) - 1 | status: S | ring: R >
+			if R[sendIdx] > R[targetIdx] and (tt == checkZero(targetIdx)) and sendIdx < mapSize(R) and targetIdx < mapSize(R) .
+
+	--- sendIdx < targetIDX one case for 0 and the other for all others
+	crl [send_LT_target1] : < send: sendIdx | target: targetIdx | status: S | ring: R > =>
+		< send: targetIdx | target: (targetIdx - 1) % mapSize(R) | status: S | ring: R >
+			if R[sendIdx] < R[targetIdx] and (ff == checkZero(targetIdx)) and sendIdx < mapSize(R) and targetIdx < mapSize(R) .
+	crl [send_LT_target2] : < send: sendIdx | target: targetIdx | status: S | ring: R > =>
+		< send: targetIdx | target: mapSize(R) - 1 | status: S | ring: R >
+			if R[sendIdx] < R[targetIdx] and (tt == checkZero(targetIdx)) and sendIdx < mapSize(R) and targetIdx < mapSize(R) .
+
+	--- termination rule
+	crl [send_EQ_target1] : < send: sendIdx | target: targetIdx | status: S | ring: R > =>
+		[ send: sendIdx | target: targetIdx | status: (tt,sendIdx) | ring: R ]
+			if R[sendIdx] == R[targetIdx] and sendIdx < mapSize(R) and targetIdx < mapSize(R) .
+
+endm
+
+--- Map: 0 |-> 3, 1 |-> 5, 2 |-> 2
+search { send: 1 | target: 0 | status: (ff, Null) | ring: insert(0, 3, insert(1, 5, 
+    insert(2, 2, empty))) } =>* S:State 
+	such that leaderFoundInState(S:State) == tt and 
+		maxStateMap(S:State) == getLeader(S:State) .
+
+--- Map: 0 |-> 15, 1 |-> 34, 2 |-> 2873, 3 |-> 13, 4 |-> 238748, 5 |-> 347, 6 |-> 287337, 
+--- 7 |-> 343
+search { send: 1 | target: 0 | status: (ff, Null) | ring: insert(0, 15, insert(1, 34, 
+    insert(2, 2873, insert(3, 13, insert(4, 238748, insert(5,347,insert(6,287337,
+        insert(7,343,empty)))))))) } =>* S:State 
+		    such that leaderFoundInState(S:State) == tt and 
+		        maxStateMap(S:State) == getLeader(S:State) .

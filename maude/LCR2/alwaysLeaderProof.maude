@@ -1,0 +1,27 @@
+load lcr2.maude
+load ~/maude/rltool/rltool.maude
+
+(select LCR2 .)
+(use tool varsat for validity on LCR2 .)
+(def-term-set ([ send: sendIdx:Nat | target: targetIdx:Nat | status: (tt,leader:Nat) | ring: R:Map{Nat,Nat} ]) | true /\ 
+	(uniqueMap(R:Map{Nat,Nat}, empty, 0)) = (tt)
+.)
+(add-goal inBounds : 
+	(< send: sendIdx:Nat | target: targetIdx:Nat | status: S:Status | ring: R:Map{Nat,Nat} >) | 
+		(validSendTargetIDX(R:Map{Nat,Nat}, sendIdx:Nat, targetIdx:Nat)) = (tt)
+	=> 
+	(< send: sendIdx':Nat | target: targetIdx':Nat | status: S':Status | ring: R':Map{Nat,Nat} >) | 
+		(validSendTargetIDX(R':Map{Nat,Nat}, sendIdx':Nat, targetIdx':Nat)) = (tt)
+.)
+(add-goal termination : 
+	(< send: sendIdx:Nat | target: targetIdx:Nat | status: S:Status | ring: R:Map{Nat,Nat} >) | 
+		(validSendTargetIDX(R:Map{Nat,Nat}, sendIdx:Nat, targetIdx:Nat)) = (tt)
+	=>
+	([ send: sendIdx':Nat | target: targetIdx':Nat | status: (tt,leader:Nat) | ring: R':Map{Nat,Nat} ]) | true /\ 
+	(uniqueMap(R':Map{Nat,Nat}, empty, 0)) = (tt)
+.)
+(start-proof .)
+
+(auto .)
+
+quit
