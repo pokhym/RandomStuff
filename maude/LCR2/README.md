@@ -82,7 +82,7 @@ Where we assume there is a sort State declared in the module
 		search LHS =>* S:State . --- Takes 0 or more steps until termination
 		search LHS =>1 S:State . --- Takes 1 step
 		search LHS =>+ S:State . --- Takes 1 or more steps until termination
-		search LHS => * S:State
+		search LHS =>* S:State
 			such that cond . --- Takes 0 or mores steps until termination where S:State 
 							 --- satisfies the condition cond
 
