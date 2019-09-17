@@ -95,6 +95,32 @@ Below is an example from LCR2.maude.
 				maxStateMap(S:State) == getLeader(S:State) .
 
 # Understanding rltool and its Proofs
+First a little bit on the syntax of pattern predicates.
+A pattern predicate has the form as such.
+
+	u | pred
+
+Where "u" can represent a set of states and "pred" represents a constraint on the set of states.
+For example we can have the following pattern predicate
+
+	(N:Nat) | (N:Nat) > (5) /\ (N:Nat) < (10)
+
+This is a pattern predicate where we have the set of natural numbers constrained to values greater than 5 and less than 10.
+Of course this can be extended to much more complicated predicates as shown below.
+
+	([ send: sendIdx:Nat | target: targetIdx:Nat | status: (tt,leader:Nat) | ring: R:Map{Nat,Nat} ]) | true /\ 
+		(uniqueMap(R:Map{Nat,Nat}, empty, 0)) = (tt)
+
+Where we on the left we have a set of states of sort S:State which must satisfy the condition that our ring, R, which is a map must contain only unique elements.
+	
+	r = [0,0,0] --- will not satisfy the pattern predicate
+	r = [1,2,3] --- will satisfy the pattern predicate
+
+Notice how we can put constraints on parametrized variables.
+This is not possible with the search command in Maude itself and thus we are unable to use the search command to actually complete our proof on this invariant.
+
+Below is a description of how the proof is conducted.
+
 	--- load our specification
 	load lcr2.maude
 	--- load the reachability logic tool
