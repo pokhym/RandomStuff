@@ -3,6 +3,9 @@ load ~/maude/rltool/rltool.maude
 
 (select LCR2 .)
 (use tool varsat for validity on LCR2 .)
+(declare-vars (sendIdx:Nat) U (targetIdx:Nat) U (leader:Nat) U (R:Map{Nat,Nat}) U (S:Status)
+	U (sendIdx':Nat) U (targetIdx':Nat) U (leader':Nat) U (R':Map{Nat,Nat}) U (S':Status)
+.)
 (def-term-set ([ send: sendIdx:Nat | target: targetIdx:Nat | status: (tt,leader:Nat) | ring: R:Map{Nat,Nat} ]) | true /\ 
 	(uniqueMap(R:Map{Nat,Nat}, empty, 0)) = (tt)
 .)
