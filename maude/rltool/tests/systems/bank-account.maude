@@ -23,6 +23,9 @@ set print attribute on .
 --- INSERT PROOF SCRIPT HERE
 (case 1 on Msgs&3:MsgConf by (Msg1:Msg, Msg2:MsgConf) U (mt) .)
 (auto .)
-(subsume 11 by 1 .) --- exists a substitution that seems to satisfy the TEUB |= thing in the subsumption formula
+--- exists a substitution that seems to satisfy the TEUB |= thing in the subsumption formula
+--- Therefore because there is a substitution from the generated goal and the original goal 1
+--- we then are able to subsume
+(subsume 11 by 1 .)
 (auto .)
 (auto .)
