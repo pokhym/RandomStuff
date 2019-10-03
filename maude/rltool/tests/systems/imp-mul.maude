@@ -18,4 +18,24 @@ load ../../rltool.maude
 		    | x |-> X' *  x, |-> Y * x,, |-> S' * x,,, |-> MAX >) | INSERT MULTIPLICATION CORRECTNESS POST-CONDITION HERE .) 
 (start-proof .)
 
-PROOF SCRIPT FOLLOWS HERE
+--- while(x < x,,,) {
+---     x = x + 1;
+---     x,, = x,, + x, ;
+--- }
+
+--- method asdf(x3: nat, x1: nat ) returns(x2: nat)
+--- //  requires x3 > 0 && x1 >= 0
+---   ensures x2 == x3 * x1
+--- {
+---   var x := 0;
+---   x2 := 0;
+---    while(x < x3)
+---     invariant 0 <= x <= x3
+---     invariant (x3 - x) * x1 + x2 == x3 * x1
+---   {
+---       x := x + 1;
+---       x2 := x2 + x1;
+---   }
+  
+--- //  ret := x2;
+--- }
