@@ -1,0 +1,332 @@
+set include BOOL off .
+--- Booleans
+fmod IBOOL is
+    --- use Maude built-in Booleans
+    --- pr BOOL-OPS .
+    sort Bool .
+    op true : -> Bool [ctor metadata "0"] .
+    op false : -> Bool [ctor metadata "1"] .
+    op _and_ : Bool Bool -> Bool [metadata "2"] .
+    vars P1 P2 : Bool .
+    eq P1 and false = false .
+    eq P1 and true = P1 .
+endfm
+
+---- Natural numbers
+fmod INAT is
+    pr IBOOL .
+    sort iNat .
+    op 0 : -> iNat [ctor metadata "3"] .
+    op s_ : iNat -> iNat [ctor metadata "4"] .
+    vars N N' : iNat .
+    --- equality enrichment
+    op _~iN_ : iNat iNat -> Bool [comm metadata "5"] .
+    eq N ~iN N = true .
+    eq s N ~iN s N' = N ~iN N' .
+    eq 0 ~iN s N = false .
+    eq N ~iN s N = false .
+endfm
+
+--- bits
+fmod BIT is
+    pr IBOOL .
+    sort Bit .
+    op on : -> Bit [ctor metadata "6"] .
+    op off : -> Bit [ctor metadata "7"] .
+    op flip : Bit -> Bit [metadata "8"] .
+    eq flip(on) = off .
+    eq flip(off) = on .
+    --- equality enrichment
+    op _~B_ : Bit Bit -> Bool [comm metadata "9"] .
+    eq B:Bit ~B B:Bit = true .
+    eq on ~B off = false .
+    eq B:Bit ~B flip(B:Bit) = false .
+endfm
+
+--- list of naturals
+fmod INAT-LIST is
+    pr INAT .
+    sort iNatList .
+	sort NeiNatList .
+	subsort iNat < NeiNatList .
+	subsort NeiNatList < iNatList .
+    op nil : -> iNatList [ctor metadata "10"] .
+	--- op __ : iNat iNatList -> NeiNatList [ctor assoc prec 61 metadata "6" id: nil] .
+
+    op __ : iNatList iNatList -> iNatList [ctor assoc prec 61 metadata "11"] .
+    op __ : NeiNatList NeiNatList -> NeiNatList [ctor ditto metadata "11"] .
+    --- op __ : iNatList NeiNatList -> NeiNatList [ctor ditto metadata "11"] .
+    --- op __ : NeiNatList iNatList -> NeiNatList [ctor ditto metadata "11"] .
+
+    op _~iNL_ : iNatList iNatList -> Bool [comm metadata "12"] .
+    var L : iNatList .
+    vars P Q R S : NeiNatList .
+    var N M : iNat .
+    eq P ~iNL P = true .
+    eq 0 ~iNL nil = false .
+    eq s(N) ~iNL nil = false .
+    eq (P Q) ~iNL 0 = false .
+    eq (P Q) ~iNL s(N) = false .
+    eq (P Q) ~iNL nil = false .
+    eq (P Q) ~iNL P = false .
+    eq (P Q) ~iNL Q = false .
+    eq (P Q) ~iNL (P R) = Q ~iNL R .
+    eq (P Q) ~iNL (R Q) = P ~iNL R .
+    eq (0 P) ~iNL (0 Q) = P ~iNL Q .
+    eq (P 0) ~iNL (Q 0) = P ~iNL Q .
+    eq (s(N) P) ~iNL (s(M) Q) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (P s(N)) ~iNL (Q s(M)) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (0 P) ~iNL (s(N) Q) = false .
+    eq (P 0) ~iNL (Q s(N)) = false .
+
+    eq L nil = L .
+    eq nil L = L .
+
+endfm
+--- red s(0) ~iNL s(0) .
+--- red (s(0) nil) ~iNL (s(0) nil) .
+--- red (s s 0 s 0) ~iNL (s s 0 s 0) .
+--- red (0 s 0) ~iNL (s 0 0) .
+--- red 0 ~iNL nil .
+
+--- queue of bits
+fmod BIT-QUEUE is
+    pr BIT .
+    sort BitQueue .
+	sort NeBitQueue .
+	subsort Bit < NeBitQueue .
+	subsort NeBitQueue < BitQueue .
+    op nil : -> BitQueue [ctor metadata "13"] .
+
+    op _,_ : BitQueue BitQueue -> BitQueue [assoc prec 61 metadata "14"] .
+    op _,_ : NeBitQueue NeBitQueue -> NeBitQueue [ctor ditto metadata "14"] .
+    --- op _,_ : NeBitQueue BitQueue -> NeBitQueue [ctor ditto metadata "14"] .
+    --- op _,_ : BitQueue NeBitQueue -> NeBitQueue [ctor ditto metadata "14"] .
+
+    op _~BQ_ : BitQueue BitQueue -> Bool [comm metadata "30"] .
+
+    vars B B'   : Bit .
+    vars BQ BQ' : BitQueue .
+
+    eq nil , BQ = BQ .
+    eq BQ , nil = BQ .
+
+    eq (B, BQ) ~BQ (B', BQ') = B ~B B' and BQ ~BQ BQ' .
+
+endfm
+
+--- packets: pair of bit and nat
+fmod BIT-PACKET is
+    pr BIT .
+    pr INAT .
+    sort BitPacket .
+    op ((_,_)) : Bit iNat -> BitPacket [ctor metadata "15"] .
+    vars B B'   : Bit .
+    var  BP     : BitPacket .
+    vars N N'   : iNat .
+    --- equality enrichment
+    op _~BP_ : BitPacket BitPacket -> Bool [comm metadata "16"] .
+    eq BP ~BP BP = true .
+    eq (B, N) ~BP (B', N') = (B ~B B') and (N ~iN N') .
+endfm
+
+--- queue of pairs of bits and nats
+fmod BIT-PACKET-QUEUE is
+    pr BIT-PACKET .
+    sort BitPacketQueue .
+	sort NeBitPacketQueue .
+	subsort BitPacket < NeBitPacketQueue .
+	subsort NeBitPacketQueue < BitPacketQueue .
+    op nil : -> BitPacketQueue [ctor metadata "17"] .
+    op _~BPQ_ : BitPacketQueue BitPacketQueue -> Bool [metadata "18"].
+    op _;_ : BitPacketQueue BitPacketQueue -> BitPacketQueue [assoc prec 60 metadata "19"] .
+    op _;_ : NeBitPacketQueue NeBitPacketQueue -> NeBitPacketQueue [ctor ditto metadata "19"] .
+    --- op _;_ : NeBitPacketQueue BitPacketQueue -> NeBitPacketQueue [ctor ditto metadata "18"] .
+    --- op _;_ : BitPacketQueue NeBitPacketQueue -> NeBitPacketQueue [ctor ditto metadata "18"] .
+
+
+    vars B B'     : Bit .
+    vars BP BP'   : BitPacket .
+    vars BPQ BPQ' : BitPacketQueue .
+    vars N N'       : iNat . 
+
+    eq BP ; nil = BP .
+    eq nil ; BP = BP .
+    eq nil ~BPQ nil = true .
+    eq ((B,N) ; BPQ) ~BPQ ((B',N') ; BPQ') = (B,N) ~BP (B',N') and BPQ ~BPQ BPQ' .
+
+endfm
+
+--- state syntax
+fmod ABP-STATE is
+    pr BIT-PACKET-QUEUE .
+    pr BIT-QUEUE .
+    pr INAT-LIST .
+    sort Sys .
+    op _:_>_|_<_:_ : iNat Bit BitPacketQueue BitQueue Bit iNatList -> Sys [ctor metadata "20"] .
+
+    var N : iNat .
+	var NL : iNatList .
+	var NNL : NeiNatList .
+	var B C : Bit .
+	var BPQ : BitPacketQueue .
+	var NBPQ : NeBitPacketQueue .
+	var BQ : BitQueue .
+	var NBQ : NeBitQueue .
+
+    op init : Sys -> Bool [metadata "21"].
+    eq [init-1] : init( 0 : on > nil | nil < on : nil) = true .
+    eq [init-2] : init( 0 : off > nil | nil < off : nil) = true .
+    ---I don't think this covers all the false cases but am not sure
+	---should have cases that also cover impossible/unreachable states
+	---think the non empty types are correctly defined so these should work
+	eq [init-f1] : init( s N : B > BPQ | BQ < C : NL ) = false . 
+	eq [init-f2] : init( N : B > BPQ | BQ < C : NNL ) = false .
+	eq [init-f3] : init( N : B > NBPQ | BQ < C : NL ) = false .
+	eq [init-f4] : init( N : B > BPQ | NBQ < C : NL ) = false . 
+endfm
+
+fmod ABP-PREDS is
+    pr ABP-STATE .
+    vars B1 B2 B B' B'' B''' : Bit .
+    var BPQ : BitPacketQueue .
+    var BP : BitPacket .
+    var BQ : BitQueue .
+    vars N N' : iNat .
+    var NL : iNatList .
+    --- main invariant
+    op inv : Sys -> Bool [metadata "22"] .
+    eq [inv-1a] : inv(N : on > BPQ | BQ < on : NL)
+        = (N NL) ~iNL gen-list(N) .
+    eq [inv-1a] : inv(N : off > BPQ | BQ < off : NL)
+        = (N NL) ~iNL gen-list(N) .
+    eq [inv-2a] : inv(N : on > BPQ | BQ < off : NL)
+        = NL ~iNL gen-list(N) .
+    eq [inv-2a] : inv(N : off > BPQ | BQ < on : NL)
+        = NL ~iNL gen-list(N) .
+            
+    -------------------------------------
+    --- auxiliary generation of lists ---
+    -------------------------------------
+    op gen-list : iNat -> NeiNatList [metadata "23"] .
+    eq gen-list(0) = (0 nil) .
+    eq gen-list(s N) = (s N) gen-list(N) .
+
+    
+    op good-queues : Sys -> Bool [metadata "24"] .
+    eq [good-queues-1a] : good-queues(N : on > BPQ | BQ < on : NL)
+        = all-bits(BQ,on) and good-packet-queue(BPQ,on,N) .
+    eq [good-queues-1b] : good-queues(N : off > BPQ | BQ < off : NL)
+        = all-bits(BQ,off) and good-packet-queue(BPQ,off,N) .
+    eq [good-queues-2a] : good-queues(N : on > BPQ | BQ < off : NL)
+        = good-bit-queue(BQ,off) and all-packets(BPQ,on,N) .
+    eq [good-queues-2b] : good-queues(N : off > BPQ | BQ < on : NL)
+        = good-bit-queue(BQ,on) and all-packets(BPQ,off,N) .
+    -------------------------------------------------
+    --- auxiliary functions for the queue of bits ---
+    -------------------------------------------------
+    op good-bit-queue : BitQueue Bit -> Bool [metadata "25"] .
+    eq [gbq-1] : good-bit-queue(nil,B) = true .
+    ceq [gbq-2] : good-bit-queue((B1 , BQ), B) = good-bit-queue(BQ,B) if (B1 ~B flip(B)) = true .
+    eq [gbq-3] : good-bit-queue((B , BQ), B) = all-bits(BQ,B) .
+    
+    --- checks that all the bits in the bit queue are the same
+    op all-bits : BitQueue Bit -> Bool [metadata "26"] .
+    eq [ab-1] : all-bits((nil).BitQueue,B) = true .
+    eq [ab-2] : all-bits((B1 , BQ),B) = B1 ~B B and all-bits(BQ,B) .
+    ----------------------------------------------------
+    --- auxiliary functions for the queue of packets ---
+    ----------------------------------------------------
+    op good-packet-queue : BitPacketQueue Bit iNat -> Bool [metadata "27"] .
+    eq [gpq-1] : good-packet-queue(nil,B,N) = true .
+    ceq [gpq-2] : good-packet-queue((B1,N') ; BPQ,B,N) = 
+        N ~iN s(N') and good-packet-queue(BPQ,B,N) if (B1 ~B flip(B)) = true .
+    eq [gpq-3] : good-packet-queue((B,N') ; BPQ,B,N) = N ~iN N' and all-packets(BPQ,B,N) .
+
+    --- all-packets checks that all bit packets in a bit packet queue are the same
+    op all-packets : BitPacketQueue Bit iNat -> Bool [metadata "28"] .
+    eq [ap-1] : all-packets((nil).BitPacketQueue,B,N) = true .
+    eq [ap-2] : all-packets(BP ; BPQ,B,N) = BP ~BP (B,N) and all-packets(BPQ,B,N) .
+endfm
+--- transitions
+mod ABP is
+    pr ABP-STATE .
+    pr ABP-PREDS .
+
+    vars B B' B''  : Bit .
+    var  BP        : BitPacket .
+    vars BQ BQ'    : BitQueue .
+    vars BPQ BPQ'  : BitPacketQueue .
+    vars N N'      : iNat .
+    vars NL NL'    : iNatList .
+
+    op [_:_>_|_<_:_] : iNat Bit BitPacketQueue BitQueue Bit iNatList -> Sys [ctor metadata "31"] .
+    rl [stop] : N : B > BPQ | BQ < B' : NL  => [ N : B > BPQ | BQ < B' : NL ] .
+    
+    --- sender puts a message into the outgoing data channel
+    --- DONE
+    rl [send-1] : N : B > BPQ | BQ < B' : NL => N : B > BPQ ; ( B , N ) | BQ < B' : NL .
+    --- receiver puts an acknowledgement into the ACK channel
+    rl [send-2] : N : B > BPQ | BQ < B' : NL => N : B > BPQ | BQ , B' < B' : NL .
+    
+    --- sender recieves ACK from sender that has the same B
+    --- therefore drop
+    --- DONE
+    rl [recv-1a] : N : B > BPQ | B , BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+    --- sender receives OFF ACK, flips bit and increments
+    --- next data to send
+    --- rl [recv-1b] : N : on > BPQ | off , BQ < B' : NL => s(N) : off > BPQ | BQ < B' : NL .
+    --- sender receives ON ACK, flips bit and increments
+    --- next data to send
+    --- rl [recv-1c] : N : off > BPQ | on , BQ < B' : NL => s(N) : on > BPQ | BQ < B' : NL .
+    --- DONE
+    rl [recAck]: N : B > BPQ | flip(B) , BQ < B' : NL => s(N) : flip(B) > BPQ | BQ < B' : NL .
+
+    --- receiver recieves (on,N') puts the data in the output
+    --- channel and then flips the receiver bit
+    --- rl [recv-2a] : N : B > ( on , N' ) ; BPQ | BQ < on : NL => N : B > BPQ | BQ < off : (N' NL) .
+    --- receiver recieves (off,N') puts the data in the output
+    --- channel and then flips the receiver bit
+    --- rl [recv-2b] : N : B > ( off , N' ) ; BPQ | BQ < off : NL => N : B > BPQ | BQ < on : (N' NL) .
+    --- DONE
+    rl [addOutput] : N : B > ( B' , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < flip(B') : (N' NL) .
+
+    --- receiver ignores the data packet and does not parse
+    --- data because the sender bit is incorrect
+    --- rl [recv-2c] : N : B > ( off , N' ) ; BPQ | BQ < on : NL => N : B > BPQ | BQ < on : NL .
+    --- --- receiver ignores the data packet and does not parse
+    --- --- data because the sender bit is incorrect
+    --- rl [recv-2d] : N : B > ( on , N' ) ; BPQ | BQ < off : NL => N : B > BPQ | BQ < off : NL .
+    --- DONE
+    rl [recvIgnore] : N : B > ( B' , N' ) ; BPQ | BQ < flip(B') : NL => N : B > BPQ | BQ < flip(B') : NL .
+    
+    --- drop a message with OFF sender bit
+    --- rl [drop-1a] : N : B > ( off , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+    --- drop a message with ON sender bit
+    --- rl [drop-1b] : N : B > ( on , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+    --- DONE
+    rl [dropMsg] : N : B > ( B'' , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+
+    --- --- drop an off ACK
+    --- rl [drop-2a] : N : B > BPQ | off , BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+    --- --- drop an on ACK
+    --- rl [drop-2b] : N : B > BPQ | on , BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+    --- DONE
+    rl [dropAck] : N : B > BPQ | B'' , BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+
+    --- duplicate send
+    --- DONE
+    rl [dup-1] : N : B > BP ; BPQ | BQ < B' : NL => N : B > BP ; (( BP ; BPQ )) | BQ < B' : NL .
+    --- duplicate ack
+    --- DONE
+    rl [dup-2] : N : B > BPQ | B'' , BQ < B' : NL => N : B > BPQ | B'' , (( B'' , BQ )) < B' : NL .
+
+    --- op [_] : Sys -> Sys [ctor metadata "24"] .
+    --- var S : Sys .
+    --- rl [stop] : S => [ S ] .
+
+
+endm
+
+--- red init( 0 : off > nil | nil < off : nil) .
+--- search [10000] ( 0 : off > (nil).BitPacketQueue | (nil).BitQueue < off : (nil).iNatList) =>+ S:Sys .

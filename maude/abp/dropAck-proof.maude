@@ -1,0 +1,61 @@
+load abp.maude
+load ~/soft/maude/rltool/rltool.maude
+--- load ~/cs576/rltool/rltool.maude
+--- set print attribute on .
+set show advisories off .
+
+--- set break on .
+--- break select init' .
+
+***(
+	prove one rule at a time by commenting out the other rules in the specification
+
+	after select module but before declare vars select rulete
+)
+
+(select ABP .)
+(use tool conrew for validity on ABP with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on ABP .)
+
+--- (select-rls label1 label2 .)
+(select-rls drop-2a drop-2b .)
+
+(declare-vars (S1:Sys) U (S2:Sys) 
+	U (N1:iNat) U (B1:Bit) U (BPQ1:BitPacketQueue) U (BQ1:BitQueue) U (B1':Bit) U (NL1:iNatList)
+	U (N2:iNat) U (B2:Bit) U (BPQ2:BitPacketQueue) U (BQ2:BitQueue) U (B2':Bit) U (NL2:iNatList)
+	U (NEBPQ1:NeBitPacketQueue) U (NEBPQ2:NeBitPacketQueue) U (BP1:BitPacket) U (BP2:BitPacket)
+	U (B3:Bit) U (B3':Bit) U (NBQ2:NeBitQueue)
+.)
+
+(
+
+	def-term-set 
+		([N1 : B1 > BPQ1 | BQ1 < B1' : NL1]) 
+			| true
+.)
+
+(inv good-queues-invariant to '`[_:_>_|_<_:_`] on (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | (good-queues(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+            /\ (inv(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+.)
+
+--- rl [dropAck] : N : B > BPQ | B'' , BQ < B' : NL => N : B > BPQ | BQ < B' : NL .
+(add-axiom dropAck1 : (N1 : B1 > BPQ1 | (nil).BitQueue < B1' : NL1) | (good-queues(N1 : B1 > BPQ1 | (nil).BitQueue < B1' : NL1)) = (true) /\ (inv(N1 : B1 > BPQ1 | (nil).BitQueue < B1' : NL1)) = (true) => 
+	([N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2]) | (good-queues(N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2)) = (true) /\ (inv(N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2)) = (true) .)
+(add-axiom dropAck2 : (N1 : B1 > BPQ1 | (B3, BQ1) < B1' : NL1) | (good-queues(N1 : B1 > BPQ1 | (B3, BQ1) < B1' : NL1)) = (true) /\ (inv(N1 : B1 > BPQ1 | (B3, BQ1) < B1' : NL1)) = (true) => 
+	([N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2]) | (good-queues(N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2)) = (true) /\ (inv(N2 : B2 > BPQ2 | (nil).BitQueue < B2' : NL2)) = (true) 
+	\/ ([N2 : B2 > BPQ2 | NBQ2 < B2' : NL2]) | (good-queues(N2 : B2 > BPQ2 | NBQ2 < B2' : NL2)) = (true) /\ (inv(N2 : B2 > BPQ2 | NBQ2 < B2' : NL2)) = (true) 
+	.)
+
+(start-proof .)
+
+(use-axioms dropAck1 dropAck2 . dropAck1 dropAck2 on 1 .)
+--- (use-axioms dropAck1 . dropAck1 on 1 .)
+
+--- set print attribute on .
+
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on B:Bit by (on) U (off) .)
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BB:Bit by (on) U (off) .)
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BQ:BitQueue by ((nil).BitQueue) U (on, BBP:BitQueue) U (off, BBP:BitQueue) .)
+
+(auto .)
+quit .

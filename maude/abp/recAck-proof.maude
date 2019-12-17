@@ -1,0 +1,59 @@
+load abp.maude
+load ~/soft/maude/rltool/rltool.maude
+--- load ~/cs576/rltool/rltool.maude
+--- set print attribute on .
+set show advisories off .
+
+--- set break on .
+--- break select init' .
+
+***(
+	prove one rule at a time by commenting out the other rules in the specification
+
+	after select module but before declare vars select rulete
+)
+
+(select ABP .)
+(use tool conrew for validity on ABP with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on ABP .)
+
+--- (select-rls label1 label2 .)
+(select-rls recAck .)
+
+(declare-vars (S1:Sys) U (S2:Sys) 
+	U (N1:iNat) U (B1:Bit) U (BPQ1:BitPacketQueue) U (BQ1:BitQueue) U (B1':Bit) U (NL1:iNatList)
+	U (N2:iNat) U (B2:Bit) U (BPQ2:BitPacketQueue) U (BQ2:BitQueue) U (B2':Bit) U (NL2:iNatList)
+	U (NEBPQ1:NeBitPacketQueue) U (NEBPQ2:NeBitPacketQueue) U (BP1:BitPacket) U (BP2:BitPacket)
+	U (B3:Bit) U (B3':Bit) U (N3:iNat)
+.)
+
+(
+
+	def-term-set 
+		([N1 : B1 > BPQ1 | BQ1 < B1' : NL1]) 
+			| true
+.)
+
+(inv good-queues-invariant to '`[_:_>_|_<_:_`] on (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | (good-queues(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+            /\ (inv(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+.)
+
+(start-proof .)
+
+set print attribute on .
+
+--- rl [recAck]: N : B > BPQ | flip(B) , BQ < B' : NL => s(N) : flip(B) > BPQ | BQ < B' : NL .
+
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on B:Bit by (on) U (off) .)
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BB:Bit by (on) U (off) .)
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BQ:BitQueue by ((nil).BitQueue) U (on, BBP:BitQueue) U (off, BBP:BitQueue) .)
+
+(split (N:iNat : on > BPQ:BitPacketQueue | (off, BQ:BitQueue) < on : NL:iNatList) by (all-bits((off, BQ:BitQueue), on)) = (true) and (all-bits((off, BQ:BitQueue), on)) = (false) .)
+
+(split (N:iNat : on > BPQ:BitPacketQueue | (on, BQ:BitQueue) < on : NL:iNatList) by (all-bits((on, BQ:BitQueue), on)) = (true) and (all-bits((on, BQ:BitQueue), on)) = (false) .)
+
+(split (N:iNat : off > BPQ:BitPacketQueue | (on, BQ:BitQueue) < off : NL:iNatList) by (all-bits((on, BQ:BitQueue), off)) = (true) and (all-bits((on, BQ:BitQueue), off)) = (false) .)
+(split (N:iNat : off > BPQ:BitPacketQueue | (off, BQ:BitQueue) < off : NL:iNatList) by (all-bits((off, BQ:BitQueue), off)) = (true) and (all-bits((off, BQ:BitQueue), off)) = (false) .)
+
+(auto .)
+quit .

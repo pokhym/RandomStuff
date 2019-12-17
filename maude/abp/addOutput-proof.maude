@@ -1,0 +1,68 @@
+load abp.maude
+load ~/soft/maude/rltool/rltool.maude
+--- load ~/cs576/rltool/rltool.maude
+--- set print attribute on .
+set show advisories off .
+
+--- set break on .
+--- break select init' .
+
+***(
+	prove one rule at a time by commenting out the other rules in the specification
+
+	after select module but before declare vars select rulete
+)
+
+(select ABP .)
+(use tool conrew for validity on ABP with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on ABP .)
+
+--- (select-rls label1 label2 .)
+(select-rls addOutput .)
+
+(declare-vars (S1:Sys) U (S2:Sys) 
+	U (N1:iNat) U (B1:Bit) U (BPQ1:BitPacketQueue) U (BQ1:BitQueue) U (B1':Bit) U (NL1:iNatList)
+	U (N2:iNat) U (B2:Bit) U (BPQ2:BitPacketQueue) U (BQ2:BitQueue) U (B2':Bit) U (NL2:iNatList)
+	U (NEBPQ1:NeBitPacketQueue) U (NEBPQ2:NeBitPacketQueue) U (BP1:BitPacket) U (BP2:BitPacket)
+	U (B3:Bit) U (B3':Bit) U (N3:iNat)
+.)
+
+(
+
+	def-term-set 
+		([N1 : B1 > BPQ1 | BQ1 < B1' : NL1]) 
+			| true
+.)
+
+(inv good-queues-invariant to '`[_:_>_|_<_:_`] on (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | (good-queues(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+            /\ (inv(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (true)
+.)
+
+--- rl [addOutput] : N : B > ( B' , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < flip(B') : (N' NL) .
+(add-axiom addOutput1 : (N1 : B1 > (nil).BitPacketQueue | BQ1 < B1' : NL1) | (good-queues(N1 : B1 > (nil).BitPacketQueue | BQ1 < B1' : NL1)) = (true) /\ (inv(N1 : B1 > (nil).BitPacketQueue | BQ1 < B1' : NL1)) = (true) => 
+	([N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2]) | (good-queues(N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2)) = (true) /\ (inv(N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2)) = (true) .)
+
+(add-axiom addOutput2 : (N1 : B1 > ((B1', N3) ; BPQ1) | BQ1 < B1' : NL1) | (good-queues(N1 : B1 > ((B1', N3) ; BPQ1) | BQ1 < B1' : NL1)) = (true) /\ (inv(N1 : B1 > ((B1', N3) ; BPQ1) | BQ1 < B1' : NL1)) = (true) => 
+	([N2 : B2 > NEBPQ2  | BQ2 < flip(B1') : (N3 NL1)]) | (good-queues(N2 : B2 > NEBPQ2 | BQ2 < flip(B1') : (N3 NL1))) = (true) /\ (inv(N2 : B2 > NEBPQ2 | BQ2 < flip(B1') : (N3 NL1))) = (true) 
+	\/ ([N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2]) | (good-queues(N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2)) = (true) /\ (inv(N2 : B2 > (nil).BitPacketQueue | BQ2 < B2' : NL2)) = (true) .)
+
+(start-proof .)
+
+(use-axioms addOutput1 addOutput2 . addOutput1 addOutput2  on 1 .)
+--- (use-axioms addOutput1 . addOutput1  on 1 .)
+
+set print attribute on .
+
+--- rl [addOutput] : N : B > ( B' , N' ) ; BPQ | BQ < B' : NL => N : B > BPQ | BQ < flip(B') : (N' NL) .
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BB:Bit by (on) U (off) .)
+(case (N:iNat : B:Bit > BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on BPQ:BitPacketQueue by ((nil).BitPacketQueue) U ((on, N':iNat) ; BBPQ:BitPacketQueue) U ((off, N':iNat) ; BBPQ:BitPacketQueue) .)
+(case (N:iNat : B:Bit > (BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) on NL:iNatList by ((nil).iNatList) U (NNN:iNat NNNL:iNatList) .)
+
+--- (split (N:iNat : B:Bit > (BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) by ((NNN:iNat NL:iNatList) ~iNL gen-list(NNN:iNat)) = (true) and ((NNN:iNat NL:iNatList) ~iNL gen-list(NNN:iNat)) = (false)  .)
+
+--- (split (N:iNat : B:Bit > (BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) by (BPQ:BitPacketQueue ~BPQ (nil).BitPacketQueue) = (true) and (BPQ:BitPacketQueue ~BPQ (nil).BitPacketQueue) = (false) .)
+
+--- (split (N:iNat : B:Bit > (BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue | BQ:BitQueue < BB:Bit : NL:iNatList) by (all-packets((BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue ,B:Bit,N:iNat)) = (true) and (all-packets((BBB:Bit, NNN:iNat) ; BPQ:BitPacketQueue ,B:Bit,N:iNat)) = (false) . )
+
+(auto .)
+quit .

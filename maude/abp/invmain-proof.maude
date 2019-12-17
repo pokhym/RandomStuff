@@ -1,0 +1,154 @@
+load abp.maude
+load ~/soft/maude/rltool/rltool.maude
+--- set print attribute on .
+set show advisories off .
+
+--- set break on .
+--- break select init' .
+
+***(
+	prove one rule at a time by commenting out the other rules in the specification
+
+	after select module but before declare vars select rule
+)
+
+(select ABP .)
+(use tool conrew for validity on ABP with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on ABP .)
+
+--- (select-rls label1 label2 .)
+(select-rls send-1 .)
+
+--- it appears that var sat requires no subsumes??????????
+--- (use tool varsat for validity on ABP .)
+
+(declare-vars (S1:Sys) U (S2:Sys) 
+	U (N1:iNat) U (B1:Bit) U (BPQ1:BitPacketQueue) U (BQ1:BitQueue) U (B1':Bit) U (NL1:iNatList)
+	U (N2:iNat) U (B2:Bit) U (BPQ2:BitPacketQueue) U (BQ2:BitQueue) U (B2':Bit) U (NL2:iNatList)
+.)
+
+--- term set are states satisfy inv and are []
+(
+	def-term-set 
+		([N1 : B1 > BPQ1 | BQ1 < B1' : NL1]) 
+			| ((gen-list(N1) ~iNL (NL1)) = (true) /\ (B1 ~B B1') = (false)) \/ ((gen-list(N1) ~iNL (N1 NL1)) = (true) /\ (B1 ~B B1') = (true))
+.)
+
+--- (
+--- 	add-goal invmain : 
+--- 	(N1 : B1 > BPQ1 | BQ1 < B1' : NL1) 
+--- 		| ((gen-list(N1) ~iNL (NL1)) = (true) /\ (B1 ~B B1') = (false)) \/ ((gen-list(N1) ~iNL (N1 NL1)) = (true) /\ (B1 ~B B1') = (true))
+--- 			=> ([N2 : B2 > BPQ2 | BQ2 < B2' : NL2]) 
+--- 				| ((gen-list(N2) ~iNL (NL2)) = (true) /\ (B2 ~B B2') = (false)) \/ ((gen-list(N2) ~iNL (N2 NL2)) = (true) /\ (B2 ~B B2') = (true))
+--- .)	
+
+--- (inv invmain1 to '`[_:_>_|_<_:_`] on (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | 
+--- 	( (gen-list(N1) ~iNL (NL1)) = (true) /\ (B1 ~B B1') = (false) /\ ((init(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (false)) ) 
+--- .)
+
+--- (inv invmain2 to '`[_:_>_|_<_:_`] on (N2 : B2 > BPQ2 | BQ2 < B2' : NL2) | 
+--- 	( (gen-list(N2) ~iNL (N2 NL2)) = (true) /\ (B2 ~B B2') = (true) /\ ((init(N2 : B2 > BPQ2 | BQ2 < B2' : NL2)) = (false)) )
+--- .)
+
+---(inv invmain to '`[_:_>_|_<_:_`] on (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | 
+---	( (((gen-list(N1) ~iNL (NL1)) = (true) /\ (B1 ~B B1') = (false)) \/ ((gen-list(N1) ~iNL (N1 NL1)) = (true) /\ (B1 ~B B1') = (true))) 
+---		/\ ((init(N1 : B1 > BPQ1 | BQ1 < B1' : NL1)) = (false)) ) 
+--- .)
+
+(inv invmainI to '`[_:_>_|_<_:_`] on ( (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | ((gen-list(N1) ~iNL (NL1)) = (true) /\ (B1 ~B B1') = (false)) ) 
+	   \/ ( (N1 : B1 > BPQ1 | BQ1 < B1' : NL1) | ((gen-list(N1) ~iNL (N1 NL1)) = (true) /\ (B1 ~B B1') = (true)) ) 
+.)
+
+
+(start-proof .)
+
+(case (N3:iNat : B4:Bit > BPQ5:BitPacketQueue | BQ6:BitQueue < B8:Bit : INL9:NeiNatList) on N3:iNat by (0:iNat) U (s N10:iNat) .)
+(case (N3:iNat : B4:Bit > BPQ5:BitPacketQueue | BQ6:BitQueue < B8:Bit : INL9:iNatList) on INL9:iNatList by (nil:iNatList) U (INL10:NeiNatList) .)
+
+--- (replace 20 by (N3&25:iNat) = (0:iNat) .)
+--- (replace 22 by (N3&25:iNat) = (0:iNat) .)
+
+--- (auto .)
+
+--- (replace 20 by (NL1&6:iNatList) = (NL1&6:NeiNatList) .)
+
+
+--- (case 1 on NL1&6:iNatList by (nil:iNat) U (NL3:NeiNatList) .)
+--- (replace 4 by (N1&1:iNat) = (0:iNat) .)
+--- (case 2 on NL2&12:iNatList by (nil:iNat) U (NL4:NeiNatList) .)
+
+--- (auto .)
+
+--- (case (N3:iNat : B4:Bit > BPQ5:BitPacketQueue | BQ6:BitQueue < B8:Bit : INL9:iNatList) on INL9:iNatList by (nil:iNatList) U (NINL10:NeiNatList) .)
+--- (case (N3:iNat : B4:Bit > BPQ5:BitPacketQueue | BQ6:BitQueue < B8:Bit : INL9:iNatList) on N3:iNat by (nil:iNat) U (s N10:iNat) .)
+
+--- (case (N11:iNat : B12:Bit > BPQ13:BitPacketQueue | BQ14:BitQueue < B15:Bit : INL16:iNatList) | (true) = (INL17:iNatList ~iNL gen-list(N18:iNat)) on INL17:iNatList by (nil:iNat) U (NINL18:NeiNatList) .)
+--- (case (N11:iNat : B12:Bit > BPQ13:BitPacketQueue | BQ14:BitQueue < B15:Bit : INL16:iNatList | (true) = (INL17:iNatList ~iNL gen-list(N18:iNat))) on N18:iNat by (0:iNat) U (s(N18:iNat)) .)
+
+--- (case (&65:iNat : &66:Bit > &67:BitPacketQueue | &68:BitQueue,&69:Bit < &69:Bit : &70:NeiNatList) on &70:NeiNatList by (0:iNat) U (JJ:NeiNatList) .)
+
+--- (replace 20 by (N1&1:iNat) = (0) .)
+--- (replace 22 by (N2&1:iNat) = (0) .)
+
+--- (subsume 23 by 20 .)
+--- (subsume 24 by 21 .)
+
+--- (auto .)
+--- (subsume 119 by 117 .)
+--- (subsume 120 by 117 .)
+--- --- 121
+--- (subsume 122 by 117 .)
+--- (subsume 123 by 117 .)
+--- --- 124
+--- --- 125
+--- --- 126
+--- --- 127
+--- --- 128
+--- (subsume 129 by 127 .)
+--- (subsume 130 by 127 .)
+--- --- 131
+--- (subsume 132 by 127 .)
+--- (subsume 133 by 127 .)
+
+
+--- in normal maude
+--- debug reduce t .
+--- debug rew t .
+--- full made
+--- breakpoints
+--- set break on/off .
+--- break de/select symbols .
+---         if symbol is lhs of eq
+---            eq f = ...
+---         or rl [label] : rule
+---         we can use this label to break
+
+--- inside debugger
+--- step .
+--- resume .
+--- abort .
+--- reduce/rewrite as normal
+--- throw away junk you dont care about in the output
+--- set print conceal on/off .
+--- print conceal/reveal symbols .
+---     print conceal f.
+---     >>> g(f(h(a))),g(b)
+---     becomes
+---     >>> g(f(...)),g(b)
+--- if you conceal _+_ you may concel both strings/addition for numbers
+--- you can rename operators in maude
+--- fmod NAME is
+---     pr N *(op f : s1 ... sn -> ot g .) .
+
+
+--- maude meta conceal
+--- print conceal mod_is_sorts_.____endm prefix form for operator that builds mod
+--- print conceal fmod_is_sorts_.____endfm
+--- name, imports, sorts, subsorts, operators, equaitons, rules, memberships
+
+--- break on ceq
+--- step to solve the first condition frag
+--- resume to get information on each condition that will be solved
+
+--- renmae _,_ to _,,_ for concat!!!! conrew requires this
+--- this applies to non-constant cases
