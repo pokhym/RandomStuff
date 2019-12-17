@@ -190,11 +190,16 @@ fmod TERM-EXTRA is
   eq buildTerm(Q,N,nil ,X) = qid(string(Q) + "." + string(X)) .
 
   op buildTerm' : Nat TypeList -> TermList .
-  eq buildTerm'(N,Y YL) = qid("@" + string(N,10) + ":" + string(Y)), buildTerm'(s(N),YL) .
+  eq buildTerm'(N,Y YL) = qid("&" + string(N,10) + ":" + string(Y)), buildTerm'(s(N),YL) .
   eq buildTerm'(N,nil ) = empty .
 
   op buildVar : Qid Type -> Variable .
   eq buildVar(Q,X) = qid(string(Q) + ":" + string(X)) .
+
+  op wellFormedList : Module TermList -> Bool .
+  ---------------------------------------------
+  eq wellFormedList(M,(T,TL)) = wellFormed(M,T) and-then wellFormedList(M,TL) .
+  eq wellFormedList(M,empty)  = true .
 endfm
 
 fmod TERMLISTPAIR is
@@ -798,6 +803,9 @@ fmod SUBSTITUTIONSET is
   vars TL TL' : TermList .
   vars N N' : Nat .
   var V : Variable .
+  var E : Equation .
+  var EC : EqCondition .
+  var AS : AttrSet .
 
   op _<<_ : Substitution SubstitutionSet -> SubstitutionSet .
   eq S << empty = empty .
@@ -824,6 +832,14 @@ fmod SUBSTITUTIONSET is
 
   op anySub : NeSubstitutionSet -> Substitution .
   eq anySub(S | SS) = S .
+
+  op _<<_ : Equation SubstitutionSet -> EquationSet .
+  ---------------------------------------------------
+  eq ( eq T = T'       [AS].) << S = ( eq (T << S) = (T' << S)              [AS].) .
+  eq (ceq T = T' if EC [AS].) << S = (ceq (T << S) = (T' << S) if (EC << S) [AS].) .
+
+  eq E << (S | S' | SS) = (E << S) (E << (S' | SS)) .
+  eq E << empty         = none .
 endfm
 
 fmod VARIANT is
@@ -840,10 +856,12 @@ fmod VARIANT is
   var AtS : AttrSet .
   var Q : Qid .
   vars S S' : Substitution .
+  var SS : SubstitutionSet .
   var V : Variable .
   vars TP TP' : Type .
   var C : Constant .
   vars F F' : Qid .
+  var Vnt : Variant .
 
 
   sort VariantTripleSet .
@@ -866,6 +884,47 @@ fmod VARIANT is
               | R:VariantTripleSet) = S:Substitution | getSubstitutions(R:VariantTripleSet) .
   eq getSubstitutions((empty).VariantTripleSet)
    = empty .
+
+  op _<<_ : Variant SubstitutionSet -> VariantTripleSet .
+  eq {T,S,N,P:Parent,B:Bool} << S' = {T << S',S << S',N,P:Parent,B:Bool} .
+  eq Vnt << (S | S' | SS)          = (Vnt << S) | (Vnt << (S' | SS)) .
+  eq Vnt << empty                  = empty .
+endfm
+
+fmod NARROWING-SEARCH-RESULT is
+  pr META-LEVEL .
+  pr TERMSET-FM .
+
+  var ResTerm : Term .
+  var ResType : Type .
+  var TermSub : Substitution .
+  var TermVarFlag : Qid .
+  var RuleSub : Substitution .
+  var RuleVarFlag : Qid .
+  var ResultSet : NarrowingSearchResultSet .
+  var RTS : ResultTripleSet .
+
+  sort NarrowingSearchResultSet .
+  subsort NarrowingSearchResult? < NarrowingSearchResultSet .
+  op _|_ : NarrowingSearchResultSet NarrowingSearchResultSet -> NarrowingSearchResultSet [ctor assoc comm id: .NarrowingSearchResultSet] .
+  op .NarrowingSearchResultSet : -> NarrowingSearchResultSet [ctor] .
+
+  --- For compatibility with older code
+  sort ResultTripleSet .
+  subsort ResultTriple < ResultTripleSet .
+  op empty : -> ResultTripleSet [ctor] .
+  op _|_ : ResultTripleSet ResultTripleSet -> ResultTripleSet
+    [ctor assoc comm id: empty prec 65 format (d d n d)] .
+  eq X:ResultTriple | X:ResultTriple = X:ResultTriple .
+
+  op toResultTripleSet : NarrowingSearchResultSet -> ResultTripleSet .
+  eq toResultTripleSet({ ResTerm, ResType, TermSub, TermVarFlag, RuleSub, RuleVarFlag } | ResultSet) =
+    { ResTerm, ResType, TermSub } | toResultTripleSet(ResultSet) .
+  eq toResultTripleSet(.NarrowingSearchResultSet) = empty .
+
+  op TermSet : ResultTripleSet -> TermSet .
+  eq TermSet({ ResTerm, ResType, TermSub } | RTS) = ResTerm | TermSet(RTS) .
+  eq TermSet((empty).ResultTripleSet) = emptyTermSet .
 endfm
 
 fmod KIND-CHECK is
@@ -1037,6 +1096,9 @@ fmod SUBSTITUTIONSETPAIR is pr SUBSTITUTIONPAIR . endfm
 
 fmod SUBSTITUTIONPAIRSET is
   pr SUBSTITUTIONPAIR .
+  var X : SubstitutionPair .
+  var SPS : SubstitutionPairSet .
+
   sort SubstitutionPairSet NeSubstitutionPairSet .
   subsort SubstitutionPair < NeSubstitutionPairSet < SubstitutionPairSet .
   op empty : -> SubstitutionPairSet [ctor] .
@@ -1045,6 +1107,12 @@ fmod SUBSTITUTIONPAIRSET is
   op _|_ : NeSubstitutionPairSet SubstitutionPairSet -> NeSubstitutionPairSet
     [ctor ditto] .
   eq X:SubstitutionPair | X:SubstitutionPair = X:SubstitutionPair .
+
+  ops p1 p2 : SubstitutionPairSet -> SubstitutionSet .
+  eq p1(X | SPS) = p1(X) | p1(SPS) .
+  eq p1(empty)   = empty .
+  eq p2(X | SPS) = p2(X) | p2(SPS) .
+  eq p2(empty)   = empty .
 endfm
 
 fmod SUBSTITUTION-AUX is
@@ -1466,13 +1534,19 @@ fmod OPDECL-EXTRA is
   op resultType : OpDecl -> Type .
   op attrSet    : OpDecl -> AttrSet .
   op metadata   : OpDecl ~> String .
+  op metadataOwise : OpDecl String -> String .
   var Q : Qid    . var T  : Type    . var TL : TypeList .
-  var S : String . var AS : AttrSet .
+  var S S' : String . var AS AS' : AttrSet .
   eq qid(op Q : TL -> T [AS].)        = Q  .
   eq argTypes(op Q : TL -> T [AS].)   = TL .
   eq resultType(op Q : TL -> T [AS].) = T  .
   eq attrSet(op Q : TL -> T [AS].)    = AS .
   eq metadata(op Q : TL -> T [metadata(S) AS].) = S .
+  eq metadataOwise(op Q : TL -> T [metadata(S) AS].,S') = S .
+  eq metadataOwise(op Q : TL -> T [AS].,S') = S' [owise] .
+
+  op addAttrs1 : AttrSet OpDecl -> OpDecl .
+  eq addAttrs1(AS',op Q : TL -> T [AS].) = (op Q : TL -> T [AS AS'].) .
 endfm
 
 fmod OPDECLSET-EXTRA is
@@ -1693,6 +1767,10 @@ fmod OPDECLSET-EXTRA is
 
   op id-ops? : OpDeclSet -> Bool .
   eq id-ops?(OS) = anyAttrOccurs?(id-attr right-id-attr left-id-attr,OS) .
+
+  op addAttrs : AttrSet OpDeclSet -> OpDeclSet .
+  eq addAttrs(AS,OD OS) = addAttrs1(AS,OD) addAttrs(AS,OS) .
+  eq addAttrs(AS,none) = none .
 endfm
 
 fmod OPDECL-TYPING is
@@ -2043,6 +2121,18 @@ fmod UNIQUE-PREFIX is
   eq qidSetToStrSet(D ; Q)  = string(D) , qidSetToStrSet(Q) .
   eq qidSetToStrSet(none)   = empty .
 
+  --- OUT: This function generates a string that,
+  ---      when used as part of an operator name that is pretty-printed
+  ---      by metaPrettyPrint, will, up to variable name clashes,
+  ---      generates a unique token in the QidList
+  op uniqueToken  : Module -> String [memo] .
+  op uniqueToken  : String QidSet -> String .
+  op uniqueToken1 : String String -> String .
+  -------------------------------------------
+  eq uniqueToken(M:Module) = uniqueToken("@",qid(getOps(M:Module)) ; getSorts(M:Module)) .
+  eq uniqueToken(P,D ; Q)  = uniqueToken(uniqueToken1(P,string(D)),Q) .
+  eq uniqueToken(P,none)   = P .
+  eq uniqueToken1(P,S)     = if find(S,P,0) == notFound then P else uniqueToken1(P + "@",S) fi .
 endfm
 
 --- Module checks if all the rules in the module we are analyzing in the same kind.
@@ -3073,20 +3163,28 @@ fmod GENERIC-PRINTER is
   pr TERMSET-FM .
   pr UNIT-FM    .
   pr MAYBE-QID  .
+  pr UNIQUE-PREFIX .
 
   var A A' : Assignment .
   var B : Bool .
   var M : Module  .
-  var N : Nat .
+  var N Cnt : Nat .
   var NL : NatList .
   var Q Q' : Qid .
-  var QL : QidList .
+  var Wrp : Qid .
+  var QL QL' : QidList .
   var RP RP' : ResultPair .
   var RP? : [ResultPair] .
   var SB : Substitution .
   var T T' : Term .
   var TS : TermSet .
   var V : Variable .
+  var C : Constant .
+  var TL : TermList .
+  var NTL : NeTermList .
+  var K : Kind .
+  var KS : KindSet .
+  var S : String .
 
   op &mt : -> Qid .
   op &sp : -> Qid .
@@ -3148,6 +3246,88 @@ fmod GENERIC-PRINTER is
  ceq printMeta(M,B) = 'upModule '`( printMeta(getName(M)) '`, printMeta(B) '`)
   if getName(M) :: Qid .
   eq printMeta(M,B) = '`( 'Error: 'printMeta 'module 'failure '`) [owise] .
+
+  --- OUT: add unique wrappers for each kind
+  op unique-kind-wrapper : Module -> Module [memo] .
+  eq unique-kind-wrapper(M) = addOps(unique-kind-wrapper(uniqueToken(M),getKinds(M)),M) .
+
+  op unique-kind-wrapper : String KindSet -> OpDeclSet .
+  eq unique-kind-wrapper(S,K ; KS) = (op qid(S + "(_)") : K -> K [ctor].) unique-kind-wrapper(S,KS) .
+  eq unique-kind-wrapper(S,none)   = none .
+
+  op unique-wrapper : Module -> Qid .
+  eq unique-wrapper(M) = qid(uniqueToken(M) + "(_)") .
+
+  --- OUT: check if operator name is "open," i.e., if it has an unguarded underscore (_)
+  op open-op?  : String -> Bool .
+  eq open-op?(S) = substr(S,0,              1) == "_" or-else substr(S,sd(length(S),1),1) == "_" .
+
+  --- OUT: disambiguate nested open operators
+  op disambiguate : Qid Bool TermList -> TermList .
+  --- disambiguate nested open operators
+  eq disambiguate(Wrp,true,Q[NTL]) =
+    if open-op?(string(Q))
+      then Wrp[Q[disambiguate(Wrp,open-op?(string(Q)),NTL)]]
+      else     Q[disambiguate(Wrp,open-op?(string(Q)),NTL)]
+    fi .
+  eq disambiguate(Wrp,false,Q[NTL]) = Q[disambiguate(Wrp,open-op?(string(Q)),NTL)] .
+  --- base case
+  eq disambiguate(Wrp,B,V) = V .
+  eq disambiguate(Wrp,B,C) = C .
+  ---
+  eq disambiguate(Wrp,B,(T,T',TL)) = disambiguate(Wrp,B,T), disambiguate(Wrp,B,(T',TL)) .
+  eq disambiguate(Wrp,B,empty)     = empty .
+
+  --- OUT: metaPrettyPrint with more disambiguation then default
+  op printDisambiguatedTerm : Module Term -> QidList .
+  eq printDisambiguatedTerm(M,T) = scrub(qid(uniqueToken(M)),metaPrettyPrint(unique-kind-wrapper(M),disambiguate(unique-wrapper(M),false,T))) .
+
+  op scrub : Qid QidList -> QidList .
+  op scrub : Qid QidList QidList -> QidList .
+  -------------------------------------------
+  eq scrub(Q,QL)        = scrub(Q,QL,nil) .
+  eq scrub(Q,Q' QL,QL') = if Q == Q' then scrub(Q,QL,QL') else scrub(Q,QL,QL' Q') fi .
+  eq scrub(Q,nil,  QL') = QL' .
+
+  --- OUT: print term to string
+  op printTermToString : Module Bool Term -> String .
+  eq printTermToString(M,true, T) = printToString(printDisambiguatedTerm(M,T)) .
+  eq printTermToString(M,false,T) = printToString(printTerm(M,T)) .
+
+  op printToString : QidList -> String .
+  op printToString : String Bool QidList -> String .
+  --------------------------------------------------
+  eq printToString(Q QL)         = printToString(toString(Q),munchRightSpace?(Q),QL) .
+  eq printToString(S,true, Q QL) = printToString(S + toString(Q),munchRightSpace?(Q),QL) .
+  eq printToString(S,false,Q QL) = printToString(S + if munchLeftSpace?(Q) then toString(Q) else " " + toString(Q) fi,munchRightSpace?(Q),QL) .
+  eq printToString(S,B,     nil) = S .
+
+  op toString : Qid -> String .
+  -----------------------------
+  eq toString('`,) = "," .
+  eq toString('`[) = "[" .
+  eq toString('`]) = "]" .
+  eq toString('`() = "(" .
+  eq toString('`)) = ")" .
+  eq toString('`{) = "{" .
+  eq toString('`}) = "}" .
+  eq toString(Q)   = string(Q) [owise] .
+
+  op munchLeftSpace? : Qid -> Bool .
+  ----------------------------------
+  eq munchLeftSpace?('`,) = true .
+  eq munchLeftSpace?('`]) = true .
+  eq munchLeftSpace?('`)) = true .
+  eq munchLeftSpace?('`}) = true .
+  eq munchLeftSpace?(Q)   = false [owise] .
+
+  op munchRightSpace? : Qid -> Bool .
+  -----------------------------------
+  eq munchRightSpace?('`,) = true .
+  eq munchRightSpace?('`[) = true .
+  eq munchRightSpace?('`() = true .
+  eq munchRightSpace?('`{) = true .
+  eq munchRightSpace?(Q)   = false [owise] .
 endfm
 
 fmod META-PARSE is
@@ -3195,10 +3375,10 @@ fmod RENAME-TERM is
   pr SUBSTITUTION-REFINEMENT .
   pr SUBSTITUTION-AUX .
 
-  var N : Nat . var V V' : Variable  . var TL : TermList    . var C : Constant . var S : VarSubstitution .
+  var N P : Nat . var V V' : Variable  . var TL : TermList    . var C : Constant . var S : VarSubstitution .
   var Q : Qid . var L L' : GTermList . var CL : NeCTermList . var T T' : GTerm .
-  var TQ TQ' : TermQid . var TQS : TermQidSet . var STR : String . var KN : [Nat] .
-  var VS : VariableSet .
+  var TQ TQ' : TermQid . var TQS : TermQidSet . var STR NStr TStr : String . var KN : [Nat] .
+  var VS : VariableSet . var B : Bool . var Y : Type .
 
   sort NameData .
   op [_,_] : Nat VarSubstitution -> NameData [ctor] .
@@ -3254,15 +3434,20 @@ fmod RENAME-TERM is
 
   op rvGetObj : RenamedGTermList ~> GTermList .
   op rvGetSub : RenamedGTermList ~> Substitution .
-  op rvVar    : Nat Variable     -> Variable  .
-  ----------------------------------------------
+  op rvVar    : Nat Variable     -> Variable .
+  op rvVar    : Nat String Variable -> Variable .
+  op rvTmpVar : Nat Type -> Variable .
+  ------------------------------------
   eq rvGetObj([[N,S],L:[Term]]) = L:[Term] .
   eq rvGetSub ([[N,S],L:[Term]]) = S .
-  eq rvVar(N,V) =
-    qid("&"          +
+  eq rvVar(N,V)    = rvVar(N,"&",V) .
+  eq rvVar(N,STR,V) =
+    qid(if find("#&@%",substr(string(V),0,1),0) == notFound then substr(string(V),0,1) else "" fi +
+        STR          +
         string(N,10) +
         ":"          +
         substr(string(V), rfind(string(V), ":", length(string(V))) + 1, length(string(V)))) .
+  eq rvTmpVar(N,Y) = qid("#" + string(N,10) + ":" + string(Y)) .
 
   op freshifyVars : Nat TermQidSet -> Substitution .
   op freshifyVars : Nat Substitution TermQidSet -> Substitution .
@@ -3270,31 +3455,43 @@ fmod RENAME-TERM is
   eq freshifyVars(N,TQS)   = rvGetSub(#renameVars([s(N),none],TermList(TQS))) .
   eq freshifyVars(N,S,TQS) = rvGetSub(#renameVars([s(N),S],   TermList(TQS))) .
 
-  op maxVar : TermQid -> Nat .
-  op maxVar : GTermList -> Nat .
-  op maxVar : TermQidSet -> Nat .
-  -------------------------------
-  eq maxVar(C) = 0 .
-  eq maxVar(V) = parseIndex(string(getName(V))) .
+  op maxVar : Bool TermQid -> Nat .
+  op maxVar : Bool GTermList -> Nat .
+  op maxVar : Bool TermQidSet -> Nat .
+  ------------------------------------
+  eq maxVar(B,C)              = 0 .
+  eq maxVar(B,V)              = parseIndex(B,string(getName(V))) .
+  eq maxVar(B,Q[TL])          = maxVar(B,TL) .
+  eq maxVar(B,Q[CL])          = maxVar(B,CL) .
+  eq maxVar(B,(T,T',L))       = max(maxVar(B,T),maxVar(B,(T',L))) .
+  eq maxVar(B,empty)          = 0 .
+  eq maxVar(B,TQ ; TQ' ; TQS) = max(maxVar(B,TQ),maxVar(B,TQ' ; TQS)) .
+  eq maxVar(B,none)           = 0 .
 
-  eq maxVar(Q[TL]) = maxVar(TL) .
-  eq maxVar(Q[CL]) = maxVar(CL) .
-  eq maxVar((T,T',L)) = max(maxVar(T),maxVar((T',L))) .
-  eq maxVar(empty) = 0 .
-
-  eq maxVar(TQ ; TQ' ; TQS) = max(maxVar(TQ),maxVar(TQ' ; TQS)) .
-  eq maxVar(none) = 0 .
-
-  op parseIndex : String ~> Nat .
+  op parseIndex : Bool String ~> Nat .
   op parseIndex : FindResult String ~> Nat .
   op parseIndex : Nat ~> Nat .
   ----------------------------
-  eq parseIndex(STR) = parseIndex(rfind(STR,"&",length(STR)),STR) .
+  eq parseIndex(true, STR) = parseIndex(findIndex(STR,length(STR)),STR) .
+  eq parseIndex(false,STR) = parseIndex(rfind(STR,"&",length(STR)),STR) .
 
   eq parseIndex(notFound,STR) = 0 .
   eq parseIndex(N,       STR) = parseIndex(rat(substr(STR,s(N),length(STR)),10)) .
 
   eq parseIndex(KN) = if KN :: Nat then KN else 0 fi .
+
+  op findIndex  : String Nat -> FindResult .
+  op findIndex1 : String Nat FindResult -> FindResult .
+  op findIndex2 : String Nat FindResult -> FindResult .
+  op findIndex3 : String Nat FindResult -> FindResult .
+  -----------------------------------------------------
+  eq findIndex(STR,N)           = findIndex1(STR,N,rfind(STR,"#",N)) .
+  eq findIndex1(STR,N,P)        = P .
+  eq findIndex1(STR,N,notFound) = findIndex2(STR,N,rfind(STR,"%",N)) .
+  eq findIndex2(STR,N,P)        = P .
+  eq findIndex2(STR,N,notFound) = findIndex3(STR,N,rfind(STR,"@",N)) .
+  eq findIndex3(STR,N,P)        = P .
+  eq findIndex3(STR,N,notFound) = rfind(STR,"&",N) .
 endfm
 
 fmod RENAME-TERM-AUX is
@@ -3444,279 +3641,194 @@ fmod RENAME-TERM-AUX is
   eq #rvRenameCd([D,(T1',T2')],'=>,Q?,C,C') = #rvRenameCd(D,C,C' /\ T1' => T2') .
 endfm
 
-fmod UNIFIERS is
-  pr VARIABLES-TO-CONSTANTS .
+fmod META-FUNCTION-WRAPPER-BASE is
   pr SUBSTITUTIONSET        .
-  pr TERMSET-FM             .
-  pr SUBSTITUTION-STREAM    .
-  pr RENAME-TERM            .
   pr SUBSTITUTIONPAIRSET    .
-  ---
-  op  unifiers   : Module UnificationProblem                      -> SubstitutionSet .
-  op #unifiers   : Module UnificationProblem Nat UnificationPair? -> Stream{Substitution} .
-  ---
-  op  matches    : Module Term Term                   -> SubstitutionSet .
-  op #matches    : Module Term Term Nat Substitution? -> Stream{Substitution} .
-  ---
-  op  toUnifProb : NeTermSet      -> UnificationProblem .
-  op  toUnifProb : Term NeTermSet -> UnificationProblem .
+  pr SUBSTITUTION-STREAM    .
+  pr TERMSET-FM             .
+  pr RENAME-TERM            .
+  pr VARIANT                .
+  pr NARROWING-SEARCH-RESULT .
 
-  var M    : Module .
-  var UP   : UnificationProblem .
-  var B : Bool .
-  var Str : String .
-  var I J X : Nat .
-  var Bnd : Bound .
-  var S S' S1 S2 : Substitution .
-  var SS   : SubstitutionSet .
-  var SPS : SubstitutionPairSet .
-  var C : Constant .
-  var V : Variable .
-  var Q : Qid .
-  var T T' : Term .
-  var TL : TermList .
-  var NTL : NeTermList .
-  var TS : TermSet .
-  var NTS  : NeTermSet .
-  var SharedVars : VariableSet .
+  var M       : Module .
+  var UP      : UnificationProblem .
+  var B B'    : Bool .
+  var I J X   : Nat .
+  var P       : Parent .
+  var Bnd     : Bound .
+  var S S'    : Substitution .
+  var SS      : SubstitutionSet .
+  var SPS     : SubstitutionPairSet .
+  var T T'    : Term .
+  var TL      : TermList .
+  var Cnd     : Condition .
+  var Vars    : VariableSet .
+  var VS      : VariantTripleSet .
+  var Rel     : Qid .
+  var VarFlag : Qid .
+  var RT      : ResultTriple .
+  var RTS     : ResultTripleSet .
+  var NSR     : NarrowingSearchResult .
+  var NSRS    : NarrowingSearchResultSet .
 
-  --- PRE: Module well-defined; terms are well-defined in module
-  --- OUT: The desired match number
-  op metaMatch : Module Term Term Nat -> Substitution? .
-  eq metaMatch(M,T,T',I) = if sameKind(M,leastSort(M,T),leastSort(M,T')) then metaMatch(M,T,T',nil,I) else noMatch fi .
+  --- Match-based Functions
 
   op metaMatch : Module Term Term -> Substitution? .
-  eq metaMatch(M,T,T') = if sameKind(M,leastSort(M,T),leastSort(M,T')) then metaMatch(M,T,T',nil,0) else noMatch fi .
+  op metaMatch : Module Term Term Nat -> Substitution? .
+  op metaMatch : Module Term Term Condition -> Substitution? .
+  ------------------------------------------------------------
+  eq metaMatch(M,T,T')     = metaMatch(M,T,T',0) .
+  eq metaMatch(M,T,T',I)   = metaMatch(M,T,T',nil,I) .
+  eq metaMatch(M,T,T',Cnd) = metaMatch(M,T,T',Cnd,0) .
 
-  --- INP: Module UnificationProblem
-  --- PRE: Unification problem is well-formed in Module
-  --- OUT: A complete set of unifiers
-  --- NB:  #unifiers returns a stream of unifiers (useful for applications where the
-  ---      process may take a long time)
-  eq  unifiers(M,UP)             = set(#unifiers(M,UP,0,metaUnify(M,UP,0,0))) .
-  eq #unifiers(M,UP,I,{S,J})     = S & #unifiers(M,UP,s(I),metaUnify(M,UP,s(J),s(I))) .
-  eq #unifiers(M,UP,I,noUnifier) = end .
+  op matches : Module Term Term -> SubstitutionSet .
+  op matches : Module Term Term Condition -> SubstitutionSet .
+  op $matches : Module Term Term Condition Nat Substitution? SubstitutionSet -> SubstitutionSet .
+  -----------------------------------------------------------------------------------------------
+  eq matches(M,T,T') = matches(M,T,T',nil) .
+  eq matches(M,T,T',Cnd) = $matches(M,T,T',Cnd,0,metaMatch(M,T,T',Cnd,0),empty) .
+  eq $matches(M,T,T',Cnd,I,noMatch,SS) = SS .
+  eq $matches(M,T,T',Cnd,I,S,      SS) = $matches(M,T,T',Cnd,s(I),metaMatch(M,T,T',Cnd,s(I)),SS | S) .
 
-  --- INP: Module Term1 Term2
-  --- PRE: Terms are well-formed in Module
-  --- OUT: A complete set of matching substitutions from Term1 to Term2
-  --- NB:  #matches returns a stream of matches (useful for applications where the
-  ---      process may take a long time)
-  eq  matches(M,T,T')            = set(#matches(M,T,T',0,metaMatch(M,T,T',nil,0))) .
-  eq #matches(M,T,T',I,S)        = S & #matches(M,T,T',s(I),metaMatch(M,T,T',nil,s(I))) .
-  eq #matches(M,T,T',I,noMatch)  = end .
-
-  --- INP: NeTermSet
-  --- PRE: NeTermSet has at least two elements
-  --- OUT: A unification problem unifying all of the terms in the TermSet
-  eq toUnifProb(T | NTS)         = toUnifProb(T,NTS) .
-  eq toUnifProb(T,T' | NTS)      = T =? T' /\ toUnifProb(T,NTS) .
-  eq toUnifProb(T,T')            = T =? T' .
-
-  --- PRE: [1] Terms are well-defined in module
-  ---      [2] Terms have disjoint variables, ignoring variables passed in as optional argument
-  --- OUT: The standard unification/matching results
-  op safeUnify : Module Term Term -> SubstitutionSet .
-  op safeUnify : Module VariableSet Term Term -> SubstitutionSet .
- ceq safeUnify(M,SharedVars,T,T') = unifiers(M,T =? T') if intersection(vars(T),vars(T')) \ SharedVars == none .
-  eq safeUnify(M,SharedVars,T,T') = errsub('Unification 'unexpected 'shared 'variable) [owise print "Safe Unify Variable Error"] .
-  eq safeUnify(M,T,T')            = safeUnify(M,none,T,T') .
-
-  op safeMatch : Module Term Term -> SubstitutionSet .
-  op safeMatch : Module VariableSet Term Term -> SubstitutionSet .
- ceq safeMatch(M,SharedVars,T,T') = matches(M,T,T') if intersection(vars(T),vars(T')) \ SharedVars == none .
-  eq safeMatch(M,SharedVars,T,T') = errsub('Match 'unexpected 'shared 'variable) [owise print "Safe Match Variable Error"] .
-  eq safeMatch(M,T,T')            = safeMatch(M,none,T,T') .
-
-  op safeMatch : Module Term Term Nat -> Substitution? .
-  op safeMatch : Module VariableSet Term Term Nat -> Substitution? .
- ceq safeMatch(M,SharedVars,T,T',I) = metaMatch(M,T,T',I) if intersection(vars(T),vars(T')) \ SharedVars == none .
-  eq safeMatch(M,SharedVars,T,T',I) = errsub('Match 'unexpected 'shared 'variable) [owise print "Safe Match Variable Error"] .
-  eq safeMatch(M,T,T',I)            = safeMatch(M,none,T,T',I) .
-
-  --- PRE: [1] Terms are well-defined in module
-  ---      [2] Terms have no shared variables except for shared variables
-  op sharedMatch : Module VariableSet Term Term -> SubstitutionSet .
-  op sharedMatch : ModuleSubstPair Term Term -> SubstitutionSet .
- ceq sharedMatch(M,SharedVars,T,T') = sharedMatch(varsToConsts#(M,prefix,SharedVars),T,T') if intersection(vars(T),vars(T')) \ SharedVars == none .
-  eq sharedMatch((M,S),T,T') = constsToVars(S,matches(M,T << S,T' << S)) .
+  op lazyMatches : Module Term Term -> Stream{Substitution} .
+  op lazyMatches : Module Term Term Condition -> Stream{Substitution} .
+  op $lazyMatches : Module Term Term Condition Nat Substitution? -> Stream{Substitution} .
+  ----------------------------------------------------------------------------------------
+  eq lazyMatches(M,T,T')     = lazyMatches(M,T,T',nil) .
+  eq lazyMatches(M,T,T',Cnd) = $lazyMatches(M,T,T',Cnd,0,metaMatch(M,T,T',Cnd,0)) .
+  eq $lazyMatches(M,T,T',Cnd,I,S) = S & $lazyMatches(M,T,T',Cnd,s(I),metaMatch(M,T,T',Cnd,s(I))) .
+  eq $lazyMatches(M,T,T',Cnd,I,noMatch) = end .
 
   op matches? : Module Term Term -> Bool .
-  eq matches?(M,T,T') = wellFormed(M,T) and-then wellFormed(M,T') and-then sameKind(M,leastSort(M,T),leastSort(M,T')) and-then metaMatch(M,T,T',nil,0) :: Substitution .
-
   op matchesX? : Module Term Term -> Bool .
-  eq matchesX?(M,T,T') = matchesX?(M,T,T',0,unbounded) .
-
   op matchesX? : Module Term Term Nat Bound -> Bool .
-  eq matchesX?(M,T,T',I,Bnd) = wellFormed(M,T) and-then wellFormed(M,T') and-then metaXmatch(M,T,T',nil,I,Bnd,0) :: MatchPair .
-
-  op  nontrivCtxtMatch? : Module Term Term -> Bool .
+  op nontrivCtxtMatch? : Module Term Term -> Bool .
   op $nontrivCtxtMatch? : Module Term Term Nat -> Bool .
+  ------------------------------------------------------
+  eq matches?(M,T,T') = wellFormed(M,T) and-then wellFormed(M,T') and-then sameKind(M,leastSort(M,T),leastSort(M,T')) and-then metaMatch(M,T,T',nil,0) :: Substitution .
+  eq matchesX?(M,T,T') = matchesX?(M,T,T',0,unbounded) .
+  eq matchesX?(M,T,T',I,Bnd) = wellFormed(M,T) and-then wellFormed(M,T') and-then sameKind(M,leastSort(M,T),leastSort(M,T')) and-then metaXmatch(M,T,T',nil,I,Bnd,0) :: MatchPair .
   eq  nontrivCtxtMatch?(M,T,T')   = wellFormed(M,T) and-then wellFormed(M,T') and-then sameKind(M,leastSort(M,T),leastSort(M,T')) and-then $nontrivCtxtMatch?(M,T,T',0) .
   eq $nontrivCtxtMatch?(M,T,T',I) =
     metaXmatch(M,T,T',nil,0,unbounded,I) :: MatchPair and-then
    (getContext(metaXmatch(M,T,T',nil,0,unbounded,I)) =/= [] or-else $nontrivCtxtMatch?(M,T,T',s(I))) .
 
-  op allUnifiers : Module Bool Term TermSet -> SubstitutionSet .
-  eq allUnifiers(M,B,T,T' | TS) = if sameKind(M,leastSort(M,T),leastSort(M,T')) then disjUnifiersL(M,B,T,T') else empty fi | allUnifiers(M,B,T,TS) .
-  eq allUnifiers(M,B,T,emptyTermSet) = empty .
+  op search : Module Term Term Condition Qid Bound -> ResultTripleSet .
+  op search : Module Term Term Condition Qid Bound Nat ResultTriple ResultTripleSet -> ResultTripleSet .
+  ------------------------------------------------------------------------------------------------------
+  eq search(M,T,T',Cnd,Rel,Bnd) = search(M,T,T',Cnd,Rel,Bnd,0,metaSearch(M,T,T',Cnd,Rel,Bnd,0),empty) .
 
-  op  disjUnifiersL : Module Bool Term Term -> SubstitutionSet .
-  op $disjUnifiersL : Module Bool RenamedTerm RenamedTerm -> SubstitutionSet .
-  op $disjUnifiersL : Module Bool Substitution Nat UnificationProblem UnificationTriple SubstitutionSet -> SubstitutionSet .
-  --------------------------------------------------------------------------------------------------------------------------
-  eq  disjUnifiersL(M,B,T,T')                  = $disjUnifiersL(M,B,#renameVars(nullNameData,T),#renameVars(nullNameData,T')) .
-
-  eq $disjUnifiersL(M,B,[[I,S],T],[[J,S'],T']) = $disjUnifiersL(M,B,S,0,T =? T',metaDisjointUnify2(M,B,T =? T',0),empty) .
-
-  eq $disjUnifiersL(M,B,S2,I,UP,{S,S',J}, SS)  = $disjUnifiersL(M,B,S2,s(I),UP,metaDisjointUnify2(M,B,UP,s(I)),SS | renameDom(true,S,invert(S2))) .
-  eq $disjUnifiersL(M,B,S2,I,UP,noUnifier,SS)  = SS .
-
-  op  disjUnifiers : Module Bool Term Term -> SubstitutionPairSet .
-  op $disjUnifiers : Module Bool RenamedTerm RenamedTerm -> SubstitutionPairSet .
-  op $disjUnifiers : Module Bool Substitution Substitution Nat UnificationProblem UnificationTriple SubstitutionPairSet -> SubstitutionPairSet .
-  ----------------------------------------------------------------------------------------------------------------------------------------------
-  eq  disjUnifiers(M,B,T,T')                     = $disjUnifiers(M,B,#renameVars(nullNameData,T),#renameVars(nullNameData,T')) .
-
-  eq $disjUnifiers(M,B,[[I,S],T],[[J,S'],T'])    = $disjUnifiers(M,B,S,S',0,T =? T',metaDisjointUnify2(M,B,T =? T',0),empty) .
-
-  eq $disjUnifiers(M,B,S1,S2,I,UP,{S,S',J}, SPS) = $disjUnifiers(M,B,S1,S2,s(I),UP,metaDisjointUnify2(M,B,UP,s(I)),SPS | (renameDom(true,S,invert(S1)),renameDom(true,S',invert(S2)))) .
-  eq $disjUnifiers(M,B,S1,S2,I,UP,noUnifier,SPS) = SPS .
-
-  op metaDisjointUnify2 : Module Bool UnificationProblem Nat -> UnificationTriple .
-  eq metaDisjointUnify2(M,true, UP,I) = metaVariantDisjointUnify(M,UP,empty,0,I) .
-  eq metaDisjointUnify2(M,false,UP,I) = metaDisjointUnify(M,UP,0,I) .
-endfm
-
-fmod EQ-VARIANT is
-  pr VARIANT .
-  pr SUBSTITUTIONSET .
-
-  --- sort to collect variant unifier results
-  sort SubstSetNatPair .
-  op  ssnp : SubstitutionSet Nat -> SubstSetNatPair [ctor] .
-
-  --- copmute variants
-  op  variants     : Module Term -> VariantTripleSet .
-  op $variants     : Module Term Nat Variant? VariantTripleSet -> VariantTripleSet .
-  --- compute variant unifiers
-  op  var-unifiers : Module UnificationProblem -> SubstitutionSet .
-  op #var-unifiers : Module UnificationProblem -> SubstSetNatPair .
-  op $var-unifiers : Module UnificationProblem Nat Nat UnificationPair SubstitutionSet -> SubstSetNatPair .
-  --- helper functions for variant/variant unifier generation
-  op  applySubs : Variant SubstitutionSet -> VariantTripleSet .
-  op  getSubs   : VariantTripleSet -> SubstitutionSet .
-  op  getTerms  : VariantTripleSet -> TermSet .
-  op  getss     : SubstSetNatPair -> SubstitutionSet .
-
-  var M : Module . var T T' : Term . var I J J' : Nat . var P : Parent . var B : Bool .
-  var S S' : Substitution . var SS : SubstitutionSet . var VS : VariantTripleSet . var UP : UnificationProblem .
-
-  eq  variants(M,T)                       = $variants(M,T,0,metaGetVariant(M,T,empty,0,0),empty) .
-  eq $variants(M,T,I,noVariant,VS)        = VS .
-  eq $variants(M,T,I,{T',S,J,P,B},VS)     = $variants(M,T,s(I),metaGetVariant(M,T,empty,s(J),s(I)),{T',S,J,P,B} | VS) .
-  eq  var-unifiers(M,UP)                  = getss(#var-unifiers(M,UP)) .
-  eq #var-unifiers(M,UP)                  = $var-unifiers(M,UP,0,0,metaVariantUnify(M,UP,empty,0,0),empty) .
-  eq $var-unifiers(M,UP,I,J,noUnifier,SS) = ssnp(SS,J) .
-  eq $var-unifiers(M,UP,I,J,{S,J'},SS)    = $var-unifiers(M,UP,s(I),s(J'),metaVariantUnify(M,UP,empty,s(J'),s(I)),SS | S) .
-
-  eq applySubs({T,S,I,P,B},S' | SS) = {T << S',S << S',I,P,B} | applySubs({T,S,I,P,B},SS) .
-  eq applySubs({T,S,I,P,B},empty)   = empty .
-
-  eq getSubs({T,S,I,P,B} | VS)  = S | getSubs(VS) .
-  eq getSubs(empty)             = empty .
-  eq getTerms({T,S,I,P,B} | VS) = T | getTerms(VS) .
-  eq getTerms(empty)            = emptyTermSet .
-  eq getss(ssnp(SS,I))          = SS .
-endfm
-
-fmod NARROWING is
-  pr META-LEVEL .
-
-  var M : Module .
-  var S T : Term .
-  var Rel : Qid .
-  var Bnd : Bound .
-  var VarFlag : Qid .
-  var Num : Nat .
-  var NSR : NarrowingSearchResult .
-  var ResultSet : NarrowingSearchResultSet .
-
-  var ResTerm : Term .
-  var ResType : Type .
-  var TermSub : Substitution .
-  var TermVarFlag : Qid .
-  var RuleSub : Substitution .
-  var RuleVarFlag : Qid .
-
-  sort NarrowingSearchResultSet .
-  subsort NarrowingSearchResult? < NarrowingSearchResultSet .
-  op _|_ : NarrowingSearchResultSet NarrowingSearchResultSet -> NarrowingSearchResultSet [ctor assoc comm id: .NarrowingSearchResultSet] .
-  op .NarrowingSearchResultSet : -> NarrowingSearchResultSet [ctor] .
-
-  op metaNarrowSearch : Module Term Term Qid Bound Qid -> NarrowingSearchResultSet .
-  eq metaNarrowSearch(M,S,T,Rel,Bnd,VarFlag) =
-     metaNarrowSearch(M,S,T,Rel,Bnd,VarFlag,0) .
-
-  op metaNarrowSearch : Module Term Term Qid Bound Qid Nat -> NarrowingSearchResultSet .
-  eq metaNarrowSearch(M,S,T,Rel,Bnd,VarFlag,Num) =
-    metaNarrowSearch1(M,S,T,Rel,Bnd,VarFlag,Num,.NarrowingSearchResultSet,
-      metaNarrowingSearch(M,S,T,Rel,Bnd,VarFlag,Num)) .
-
-  op metaNarrowSearch1 : Module Term Term Qid Bound Qid Nat NarrowingSearchResultSet NarrowingSearchResult? -> NarrowingSearchResultSet .
-  eq metaNarrowSearch1(M,S,T,Rel,Bnd,VarFlag,Num,ResultSet,failure)           = ResultSet .
-  eq metaNarrowSearch1(M,S,T,Rel,Bnd,VarFlag,Num,ResultSet,failureIncomplete) = ResultSet | failureIncomplete .
-  eq metaNarrowSearch1(M,S,T,Rel,Bnd,VarFlag,Num,ResultSet,NSR)               =
-     metaNarrowSearch1(M,S,T,Rel,Bnd,VarFlag,s(Num),ResultSet | NSR,
-       metaNarrowingSearch(M,S,T,Rel,Bnd,VarFlag,s(Num))) .
-
-  --- For compatibility with older code
-  sort ResultTripleSet .
-  subsort ResultTriple < ResultTripleSet .
-  op empty : -> ResultTripleSet [ctor] .
-  op _|_ : ResultTripleSet ResultTripleSet -> ResultTripleSet
-    [ctor assoc comm id: empty prec 65 format (d d n d)] .
-  eq X:ResultTriple | X:ResultTriple = X:ResultTriple .
-
-  op toResultTripleSet : NarrowingSearchResultSet -> ResultTripleSet .
-  eq toResultTripleSet({ ResTerm, ResType, TermSub, TermVarFlag, RuleSub, RuleVarFlag } | ResultSet) =
-    { ResTerm, ResType, TermSub } | toResultTripleSet(ResultSet) .
-  eq toResultTripleSet(.NarrowingSearchResultSet) = empty .
-endfm
-
-fmod METASEARCH is
-  pr META-LEVEL .
-  pr TERMSET-FM .
-  pr NARROWING .
-
-  var U : Module .
-  var S T : Term .
-  var C : Condition .
-  var R : Qid .
-  var B : Bound .
-  var N : Nat .
-  var RT : ResultTriple .
-  var RTS : ResultTripleSet .
-  var Sub : Substitution .
-  var Ty : Type .
+  eq search(M,T,T',Cnd,Rel,Bnd,I,RT,     RTS) = search(M,T,T',Cnd,Rel,Bnd,s(I),metaSearch(M,T,T',Cnd,Rel,Bnd,s(I)),RTS | RT) .
+  eq search(M,T,T',Cnd,Rel,Bnd,I,failure,RTS) = RTS .
 
   op searchAll : Module Term -> ResultTripleSet .
   op searchAll : Module Term Qid -> ResultTripleSet .
   ---------------------------------------------------
-  eq searchAll(U,S)   = searchAll(U,S,buildVar('X,getKind(U,leastSort(U,S))),nil,'*,unbounded) .
-  eq searchAll(U,S,R) = searchAll(U,S,buildVar('X,getKind(U,leastSort(U,S))),nil,R ,unbounded) .
+  eq searchAll(M,T)     = search(M,T,buildVar('X,getKind(M,leastSort(M,T))),nil,'*  ,unbounded) .
+  eq searchAll(M,T,Rel) = search(M,T,buildVar('X,getKind(M,leastSort(M,T))),nil,Rel ,unbounded) .
 
-  op searchAll : Module Term Term Condition Qid Bound -> ResultTripleSet .
-  op searchAll : Module Term Term Condition Qid Bound Nat ResultTriple ResultTripleSet -> ResultTripleSet .
-  ---------------------------------------------------------------------------------------------------------
-  eq searchAll(U,S,T,C,R,B) = searchAll(U,S,T,C,R,B,0,metaSearch(U,S,T,C,R,B,0),empty) .
+  --- Unification-based Functions
 
-  eq searchAll(U,S,T,C,R,B,N,RT,     RTS) = searchAll(U,S,T,C,R,B,s(N),metaSearch(U,S,T,C,R,B,s(N)),RTS | RT) .
-  eq searchAll(U,S,T,C,R,B,N,failure,RTS) = RTS .
+  op metaUnify : Module UnificationProblem Nat ~> UnificationPair? .
+  op metaVariantUnify : Module UnificationProblem TermList Nat ~> UnificationPair? .
+  op metaDisjointUnify : Module UnificationProblem Nat ~> UnificationTriple .
+  op metaVariantDisjointUnify : Module UnificationProblem TermList Nat ~> UnificationTriple .
+  -------------------------------------------------------------------------------------------
+  eq metaUnify(M,UP,I)                   = metaUnify(M,UP,maxVar(true,vars(UP)),I) .
+  eq metaVariantUnify(M,UP,TL,I)         = metaVariantUnify(M,UP,TL,maxVar(true,vars(UP)),I) .
+  eq metaDisjointUnify(M,UP,I)           = metaDisjointUnify(M,UP,maxVar(true,vars(UP)),I) .
+  eq metaVariantDisjointUnify(M,UP,TL,I) = metaVariantDisjointUnify(M,UP,TL,maxVar(true,vars(UP)),I) .
 
-  op TermSet : ResultTripleSet -> TermSet .
-  eq TermSet({T,Ty,Sub} | RTS)        = T | TermSet(RTS) .
-  eq TermSet((empty).ResultTripleSet) = emptyTermSet .
+  op checkedMetaUnify : Module UnificationProblem Nat ~> UnificationPair? .
+  op checkedMetaVariantUnify : Module UnificationProblem TermList Nat ~> UnificationPair? .
+  op checkedMetaDisjointUnify : Module UnificationProblem Nat ~> UnificationTriple .
+  op checkedMetaVariantDisjointUnify : Module UnificationProblem TermList Nat ~> UnificationTriple .
+  --------------------------------------------------------------------------------------------------
+  eq checkedMetaUnify(M,UP,I)                   = if wellFormed(M,UP) then metaUnify(M,UP,maxVar(true,vars(UP)),I) else noUnifier fi .
+  eq checkedMetaVariantUnify(M,UP,TL,I)         = if wellFormed(M,UP) then metaVariantUnify(M,UP,TL,maxVar(true,vars(UP)),I) else noUnifier fi .
+  eq checkedMetaDisjointUnify(M,UP,I)           = if wellFormed(M,UP) then metaDisjointUnify(M,UP,maxVar(true,vars(UP)),I) else noUnifier fi .
+  eq checkedMetaVariantDisjointUnify(M,UP,TL,I) = if wellFormed(M,UP) then metaVariantDisjointUnify(M,UP,TL,maxVar(true,vars(UP)),I) else noUnifier fi .
+
+  op unifiers : Module UnificationProblem ~> SubstitutionSet .
+  op $unifiers : Module UnificationProblem Nat Nat UnificationPair? SubstitutionSet ~> SubstitutionSet .
+  ------------------------------------------------------------------------------------------------------
+  eq unifiers(M,UP) = if wellFormed(M,UP) then $unifiers(M,UP,maxVar(true,vars(UP)),0,metaUnify(M,UP,maxVar(true,vars(UP)),0),empty) else empty fi .
+  eq $unifiers(M,UP,X,I,noUnifier,SS) = SS .
+  eq $unifiers(M,UP,X,I,{S,J},    SS) = $unifiers(M,UP,X,s(I),metaUnify(M,UP,X,s(I)),SS | S) .
+
+  op variantUnifiers : Module UnificationProblem TermList -> SubstitutionSet .
+  op $variantUnifiers : Module UnificationProblem TermList Nat Nat UnificationPair? SubstitutionSet -> SubstitutionSet .
+  ----------------------------------------------------------------------------------------------------------------------
+  eq variantUnifiers(M,UP,TL) = if wellFormed(M,UP) then $variantUnifiers(M,UP,TL,maxVar(true,vars(UP)),0,metaVariantUnify(M,UP,TL,maxVar(true,vars(UP)),0),empty) else empty fi .
+  eq $variantUnifiers(M,UP,TL,X,I,noUnifier,SS) = SS .
+  eq $variantUnifiers(M,UP,TL,X,I,{S,J},    SS) = $variantUnifiers(M,UP,TL,X,s(I),metaVariantUnify(M,UP,TL,X,s(I)),SS | S) .
+
+  op disjUnifiers : Module UnificationProblem -> SubstitutionPairSet .
+  op $disjUnifiers : Module UnificationProblem Nat Nat UnificationTriple? SubstitutionPairSet -> SubstitutionPairSet .
+  --------------------------------------------------------------------------------------------------------------------
+  eq disjUnifiers(M,UP) = if wellFormed(M,UP) then $disjUnifiers(M,UP,maxVar(true,vars(UP)),0,metaDisjointUnify(M,UP,maxVar(true,vars(UP)),0),empty) else empty fi .
+  eq $disjUnifiers(M,UP,X,I,noUnifier,SPS) = SPS .
+  eq $disjUnifiers(M,UP,X,I,{S,S',J}, SPS) = $disjUnifiers(M,UP,X,s(I),metaDisjointUnify(M,UP,X,s(I)),SPS | (S,S')) .
+
+  op variantDisjUnifiers : Module UnificationProblem TermList -> SubstitutionPairSet .
+  op $variantDisjUnifiers : Module UnificationProblem TermList Nat Nat UnificationTriple? SubstitutionPairSet -> SubstitutionPairSet .
+  ------------------------------------------------------------------------------------------------------------------------------------
+  eq variantDisjUnifiers(M,UP,TL) = if wellFormed(M,UP) then $variantDisjUnifiers(M,UP,TL,maxVar(true,vars(UP)),0,metaVariantDisjointUnify(M,UP,TL,maxVar(true,vars(UP)),0),empty) else empty fi .
+  eq $variantDisjUnifiers(M,UP,TL,X,I,noUnifier,SPS) = SPS .
+  eq $variantDisjUnifiers(M,UP,TL,X,I,{S,S',J}, SPS) = $variantDisjUnifiers(M,UP,TL,X,s(I),metaVariantDisjointUnify(M,UP,TL,X,s(I)),SPS | (S,S')) .
+
+  op lazyUnifiers : Module UnificationProblem -> Stream{Substitution} .
+  op $lazyUnifiers : Module UnificationProblem Nat Nat UnificationPair? -> Stream{Substitution} .
+  -----------------------------------------------------------------------------------------------
+  eq lazyUnifiers(M,UP) = if wellFormed(M,UP) then $lazyUnifiers(M,UP,maxVar(true,vars(UP)),0,metaUnify(M,UP,maxVar(true,vars(UP)),0)) else end fi .
+  eq $lazyUnifiers(M,UP,X,I,{S,J}) = S & $lazyUnifiers(M,UP,X,s(I),metaUnify(M,UP,X,s(I))) .
+  eq $lazyUnifiers(M,UP,X,I,noUnifier) = end .
+
+  op lazyVariantUnifiers : Module UnificationProblem TermList -> Stream{Substitution} .
+  op $lazyVariantUnifiers : Module UnificationProblem TermList Nat Nat UnificationPair? -> Stream{Substitution} .
+  ---------------------------------------------------------------------------------------------------------------
+  eq lazyVariantUnifiers(M,UP,TL) = if wellFormed(M,UP) then $lazyVariantUnifiers(M,UP,TL,maxVar(true,vars(UP)),0,metaVariantUnify(M,UP,TL,maxVar(true,vars(UP)),0)) else end fi .
+  eq $lazyVariantUnifiers(M,UP,TL,X,I,{S,J}) = S & $lazyVariantUnifiers(M,UP,TL,X,s(I),metaVariantUnify(M,UP,TL,X,s(I))) .
+  eq $lazyVariantUnifiers(M,UP,TL,X,I,noUnifier) = end .
+
+  op metaGetVariant : Module Bool Term TermList Nat -> Variant? .
+  op metaGetVariant : Module Bool Term TermList Nat Nat -> Variant? .
+  -------------------------------------------------------------------
+  eq metaGetVariant(M,B,T,TL,I)       = metaGetVariant(M,B,T,TL,maxVar(true,T),I) .
+  eq metaGetVariant(M,true, T,TL,X,I) = metaGetIrredundantVariant(M,T,TL,X,I) .
+  eq metaGetVariant(M,false,T,TL,X,I) = metaGetVariant(M,T,TL,X,I) .
+
+  op  variants : Module Bool Term TermList -> VariantTripleSet .
+  op $variants : Module Bool Term TermList Nat Nat Variant? VariantTripleSet -> VariantTripleSet .
+  ------------------------------------------------------------------------------------------------
+  eq  variants(M,B,T,TL)                      = $variants(M,B,T,TL,maxVar(true,T),0,metaGetVariant(M,B,T,TL,maxVar(true,T),0),empty) .
+  eq $variants(M,B,T,TL,X,I,noVariant,VS)     = VS .
+  eq $variants(M,B,T,TL,X,I,{T',S,J,P,B'},VS) = $variants(M,B,T,TL,X,s(I),metaGetVariant(M,B,T,TL,X,s(I)),{T',S,J,P,B'} | VS) .
+
+  op narrowSearch : Module Term Term Qid Bound Qid -> NarrowingSearchResultSet .
+  op narrowSearch : Module Term Term Qid Bound Qid Nat -> NarrowingSearchResultSet .
+  op narrowSearch1 : Module Term Term Qid Bound Qid Nat NarrowingSearchResultSet NarrowingSearchResult? -> NarrowingSearchResultSet .
+  -----------------------------------------------------------------------------------------------------------------------------------
+  eq narrowSearch(M,T,T',Rel,Bnd,VarFlag  ) = narrowSearch (M,T,T',Rel,Bnd,VarFlag,0) .
+  eq narrowSearch(M,T,T',Rel,Bnd,VarFlag,I) = narrowSearch1(M,T,T',Rel,Bnd,VarFlag,I,.NarrowingSearchResultSet,
+                                                    metaNarrowingSearch(M,T,T',Rel,Bnd,VarFlag,I)) .
+
+  eq narrowSearch1(M,T,T',Rel,Bnd,VarFlag,I,NSRS,failure)           = NSRS .
+  eq narrowSearch1(M,T,T',Rel,Bnd,VarFlag,I,NSRS,failureIncomplete) = NSRS | failureIncomplete .
+  eq narrowSearch1(M,T,T',Rel,Bnd,VarFlag,I,NSRS,NSR)               = narrowSearch1(M,T,T',Rel,Bnd,VarFlag,s(I),NSRS | NSR,
+                                                                            metaNarrowingSearch(M,T,T',Rel,Bnd,VarFlag,s(I))) .
+
+  op wellFormed : Module UnificationProblem -> Bool .
+  ---------------------------------------------------
+  eq wellFormed(M,T =? T'      ) = wellFormed(M,T) == true and-then wellFormed(M,T') == true and-then sameKind(M,leastSort(M,T),leastSort(M,T')) == true .
+  eq wellFormed(M,T =? T' /\ UP) = wellFormed(M,T =? T') and-then wellFormed(M,UP) .
+
+  op vars : UnificationProblem -> VariableSet .
+  op vars : UnificationProblem VariableSet -> VariableSet .
+  ---------------------------------------------------------
+  eq vars(UP)                 = vars(UP,none) .
+  eq vars(T =? T',      Vars) =         Vars ; vars(T) ; vars(T')  .
+  eq vars(T =? T' /\ UP,Vars) = vars(UP,Vars ; vars(T) ; vars(T')) .
 endfm
 
 fmod OP-FAMILY is
@@ -3826,7 +3938,8 @@ endfm
 
 fmod EQ-FAMILY is
   pr OP-FAMILY .
-  pr UNIFIERS .
+  pr META-FUNCTION-WRAPPER-BASE .
+  pr STMT-EXTRA .
 
   var M : Module .
   var B : Bool .
@@ -4017,7 +4130,7 @@ endfm
 fmod REMOVE-IDS is
   pr UNIT-FM .
   pr OP-FAMILY .
-  pr EQ-VARIANT .
+  pr META-FUNCTION-WRAPPER-BASE .
   pr ATTR-EXTRA .
   pr DECL-SUBSUMPTION .
   pr STMT-EXTRA .
@@ -4079,12 +4192,12 @@ fmod REMOVE-IDS is
                               getVariants(makeIdsModule(M,Which),makeIdsTuplingModule(M, Which), addTupling(M, M), getRls(M))) .
 
   eq getVariants(IdM, M, M', Rl RlS)
-    = getRlVariants(IdM, M', variants(M, makeTuple(lhs(Rl), cond(Rl))), rhs(Rl), cond(Rl), attrSet(Rl), none)
+    = getRlVariants(IdM, M', variants(M, false, makeTuple(lhs(Rl), cond(Rl)), empty), rhs(Rl), cond(Rl), attrSet(Rl), none)
       getVariants(IdM, M, M', RlS) .
   eq getVariants(IdM, M, M', (none).RuleSet) = none .
 
   eq getVariants(IdM, M, M', Eq EqS)
-    = getEqVariants(IdM, M', variants(M, makeTuple(lhs(Eq), cond(Eq))), rhs(Eq), cond(Eq), attrSet(Eq), none)
+    = getEqVariants(IdM, M', variants(M, false, makeTuple(lhs(Eq), cond(Eq)), empty), rhs(Eq), cond(Eq), attrSet(Eq), none)
       getVariants(IdM, M, M', EqS) .
   eq getVariants(IdM, M, M', (none).EquationSet) = none .
 
@@ -4129,6 +4242,9 @@ fmod REMOVE-IDS is
         tuplingOps(M, getEqs(M), getRls(M)),
         addSorts('Tuple, M')) .
 
+  --- TODO: Consider variant of tuplingOps which takes both left and right-hand sides.
+  ---       Then, if we pass in an identity sort to identity-free sort mapping, we can soundly apply it.
+  ---       This allows us to prevent any defined symbol abstraction for identity symbols in the RHS of rules, which can cause problems.
   op tuplingOps : Module EquationSet RuleSet -> OpDeclSet .
   op tuplingOps : Module EquationSet -> OpDeclSet .
   op tuplingOps : Module RuleSet -> OpDeclSet .
@@ -4283,7 +4399,7 @@ fmod REMOVE-COMM is
   pr TERM-EXTRA .
   pr STMT-EXTRA .
   pr OPDECLSET-EXTRA .
-  pr METASEARCH .
+  pr META-FUNCTION-WRAPPER-BASE .
 
   var U : Module .
   var Q  : Qid .
@@ -4354,35 +4470,344 @@ fmod REMOVE-COMM is
   eq commRules(U,none)                              = none .
 endfm
 
-fmod SHOW-VARIANTS is
-  pr META-LEVEL .
-  pr VARIANT * (op addOps to MHaddOps, op addEqs to MHaddEqs, op addSorts to MHaddSorts) .
+fmod META-FUNCTION-WRAPPER is
+  pr META-FUNCTION-WRAPPER-BASE .
+  pr VARIABLES-TO-CONSTANTS     .
+  pr REMOVE-IDS                 .
 
-  ---(
-  sort VariantSet .
-  subsort Variant < VariantSet .
-  op _|_ : VariantSet VariantSet -> VariantSet [ctor assoc comm id: mt] .
-  op mt  : -> VariantSet [ctor] .
-  ---)
-
-  op showVariants : Module Term Bound -> VariantTripleSet .
-  op showVariants : Module Term Bound Nat Variant? -> VariantTripleSet .
-  op showVariant  : Variant -> Variant .
-
-  var N : Nat .
   var M : Module .
-  var T : Term .
-  var TOT : Bound .
-  var V : Variant .
-  var P : Parent .
-  var B : Bool .
+  var T T' : Term .
+  var TL : TermList .
+  var NTS : NeTermSet .
+  var TS : TermSet .
+  var SharedVars : VariableSet .
+  var I X : Nat .
   var S : Substitution .
+  var B : Bool .
+  var Rel : Qid .
+  var VarFlag : Qid .
+  var Bnd : Bound .
+  var UP : UnificationProblem .
 
-  eq showVariants(M,T,TOT)                       = showVariants(M,T,TOT,0,metaGetVariant(M,T,empty,0,0)) .
-  eq showVariants(M,T,s(TOT),N,V)                = showVariant(V) | showVariants(M,T,TOT,s(N),metaGetVariant(M,T,empty,0,s(N))) .
-  eq showVariants(M,T,unbounded,N,V)             = showVariant(V) | showVariants(M,T,unbounded,s(N),metaGetVariant(M,T,empty,0,s(N))) .
-  eq showVariants(M,T,0,N,V)                     = showVariant(V) .
-  eq showVariants(M,T,TOT,N,noVariant)           = empty .
-  eq showVariants(M,T,TOT,N,noVariantIncomplete) = empty .
-  eq showVariant({T,S,N,P,B})                    = {T,S,N,P,B} [print "VARIANT: {" T "," S "}"] .
+  --- safe versions of unification functions
+  op safeMetaUnify                : Module UnificationProblem Nat          -> UnificationPair? .
+  op safeMetaVariantUnify         : Module UnificationProblem TermList Nat -> UnificationPair? .
+  op safeMetaDisjointUnify        : Module UnificationProblem Nat          -> UnificationTriple .
+  op safeMetaVariantDisjointUnify : Module UnificationProblem TermList Nat -> UnificationTriple .
+  op safeMetaGetVariant           : Module Bool Term TermList Nat          -> Variant? .
+  op safeMetaGetVariant           : Module Bool Term TermList Nat Nat      -> Variant? .
+  --------------------------------------------------------------------------------------
+  eq safeMetaUnify               (M,UP,I)       = metaUnify               (removeIds(M,non-handled),UP,I)       .
+  eq safeMetaVariantUnify        (M,UP,TL,I)    = metaVariantUnify        (removeIds(M,non-handled),UP,TL,I)    .
+  eq safeMetaDisjointUnify       (M,UP,I)       = metaDisjointUnify       (removeIds(M,non-handled),UP,I)       .
+  eq safeMetaVariantDisjointUnify(M,UP,TL,I)    = metaVariantDisjointUnify(removeIds(M,non-handled),UP,TL,I)    .
+  eq safeMetaGetVariant          (M,B,T,TL,I)   = metaGetVariant          (removeIds(M,non-handled),B,T,TL,I)   .
+  eq safeMetaGetVariant          (M,B,T,TL,X,I) = metaGetVariant          (removeIds(M,non-handled),B,T,TL,X,I) .
+
+  op safeUnifiers            : Module UnificationProblem          -> SubstitutionSet .
+  op safeVariantUnifiers     : Module UnificationProblem TermList -> SubstitutionSet .
+  op safeDisjUnifiers        : Module UnificationProblem          -> SubstitutionPairSet .
+  op safeVariantDisjUnifiers : Module UnificationProblem TermList -> SubstitutionPairSet .
+  op safeLazyUnifiers        : Module UnificationProblem          -> Stream{Substitution} .
+  op safeLazyVariantUnifiers : Module UnificationProblem TermList -> Stream{Substitution} .
+  op safeVariants            : Module Bool Term TermList          -> VariantTripleSet .
+  op safeNarrowSearch        : Module Term Term Qid Bound Qid     -> NarrowingSearchResultSet .
+  ---------------------------------------------------------------------------------------------
+  eq safeUnifiers           (M,UP)                   = unifiers           (removeIds(M,non-handled),UP)                   .
+  eq safeVariantUnifiers    (M,UP,TL)                = variantUnifiers    (removeIds(M,non-handled),UP,TL)                .
+  eq safeDisjUnifiers       (M,UP)                   = disjUnifiers       (removeIds(M,non-handled),UP)                   .
+  eq safeVariantDisjUnifiers(M,UP,TL)                = variantDisjUnifiers(removeIds(M,non-handled),UP,TL)                .
+  eq safeLazyUnifiers       (M,UP)                   = lazyUnifiers       (removeIds(M,non-handled),UP)                   .
+  eq safeLazyVariantUnifiers(M,UP,TL)                = lazyVariantUnifiers(removeIds(M,non-handled),UP,TL)                .
+  eq safeVariants           (M,B,T,TL)               = variants           (removeIds(M,non-handled),B,T,TL)               .
+  eq safeNarrowSearch       (M,T,T',Rel,Bnd,VarFlag) = narrowSearch       (removeIds(M,non-handled),T,T',Rel,Bnd,VarFlag) .
+
+  --- INP: NeTermSet
+  --- PRE: NeTermSet has at least two elements
+  --- OUT: A unification problem unifying all of the terms in the TermSet
+  op toUnifProb : NeTermSet      -> UnificationProblem .
+  op toUnifProb : Term NeTermSet -> UnificationProblem .
+  eq toUnifProb(T | NTS)         = toUnifProb(T,NTS) .
+  eq toUnifProb(T,T' | NTS)      = T =? T' /\ toUnifProb(T,NTS) .
+  eq toUnifProb(T,T')            = T =? T' .
+
+  --- PRE: [1] Terms are well-defined in module
+  ---      [2] Terms have disjoint variables, ignoring variables passed in as optional argument
+  --- OUT: The standard unification/matching results
+  op sharedVarUnifiers : Module Term Term -> SubstitutionSet .
+  op sharedVarUnifiers : Module VariableSet Term Term -> SubstitutionSet .
+ ceq sharedVarUnifiers(M,SharedVars,T,T') = safeUnifiers(M,T =? T') if intersection(vars(T),vars(T')) \ SharedVars == none .
+  eq sharedVarUnifiers(M,SharedVars,T,T') = errsub('Unification 'unexpected 'shared 'variable) [owise print "Shared Variable Unify Variable Error"] .
+  eq sharedVarUnifiers(M,T,T')            = sharedVarUnifiers(M,none,T,T') .
+
+  op sharedVarMatch : Module Term Term -> SubstitutionSet .
+  op sharedVarMatch : Module VariableSet Term Term -> SubstitutionSet .
+ ceq sharedVarMatch(M,SharedVars,T,T') = matches(M,T,T') if intersection(vars(T),vars(T')) \ SharedVars == none .
+  eq sharedVarMatch(M,SharedVars,T,T') = errsub('Match 'unexpected 'shared 'variable) [owise print "Shared Variable Match Variable Error"] .
+  eq sharedVarMatch(M,T,T')            = sharedVarMatch(M,none,T,T') .
+
+  op sharedVarMatch : Module Term Term Nat -> Substitution? .
+  op sharedVarMatch : Module VariableSet Term Term Nat -> Substitution? .
+ ceq sharedVarMatch(M,SharedVars,T,T',I) = metaMatch(M,T,T',I) if intersection(vars(T),vars(T')) \ SharedVars == none .
+  eq sharedVarMatch(M,SharedVars,T,T',I) = errsub('Match 'unexpected 'shared 'variable) [owise print "Shared Variable Match Variable Error"] .
+  eq sharedVarMatch(M,T,T',I)            = sharedVarMatch(M,none,T,T',I) .
+
+  --- PRE: [1] Terms are well-defined in module
+  ---      [2] Terms have no shared variables except for shared variables
+  op sharedMatch : Module VariableSet Term Term -> SubstitutionSet .
+  op sharedMatch : ModuleSubstPair Term Term -> SubstitutionSet .
+ ceq sharedMatch(M,SharedVars,T,T') = sharedMatch(varsToConsts#(M,prefix,SharedVars),T,T') if intersection(vars(T),vars(T')) \ SharedVars == none .
+  eq sharedMatch((M,S),T,T') = constsToVars(S,matches(M,T << S,T' << S)) .
+
+  op allUnifiers : Module Term TermSet -> SubstitutionSet .
+  eq allUnifiers(M,T,T' | TS) = if sameKind(M,leastSort(M,T),leastSort(M,T')) then p1(safeDisjUnifiers(M,T =? T')) else empty fi | allUnifiers(M,T,TS) .
+  eq allUnifiers(M,T,emptyTermSet) = empty .
+endfm
+
+fmod METADATA-TAGS is
+  pr META-LEVEL .
+  pr MAYBE-QID .
+
+  var MT MT' : MetadataTag    .
+  var MTS    : MetadataTagSet .
+  var MTSK   : [MetadataTagSet] .
+
+  sort MetadataTag MetadataTagSet .
+  subsort MetadataTag < MetadataTagSet .
+  op __   : MetadataTagSet MetadataTagSet -> MetadataTagSet [ctor assoc comm id: .MetadataTagSet] .
+  op .MetadataTagSet : -> MetadataTagSet [ctor] .
+  op .MetadataTagSetErr : QidList -> [MetadataTagSet] [ctor] .
+
+  op -ctor   :           -> MetadataTag [ctor] .
+  op -rpo    : Nat       -> MetadataTag [ctor] .
+  op -poly   : NeNatList -> MetadataTag [ctor] .
+  op -fvp    :           -> MetadataTag [ctor] .
+  op -fvp(_) : TermList  -> MetadataTag [ctor] .
+  op -varsat :           -> MetadataTag [ctor] .
+
+  op tagid : MetadataTag -> Qid .
+  op tagid : MetadataTagSet -> QidSet .
+  -------------------------------------
+  eq tagid(-ctor)              = 'ctor   .
+  eq tagid(-rpo(X:Nat))        = 'rpo    .
+  eq tagid(-poly(X:NeNatList)) = 'poly   .
+  eq tagid(-fvp)               = 'fvp    .
+  eq tagid(-fvp(X:TermList))   = 'subfvp .
+  eq tagid(-varsat)            = 'varsat .
+
+  eq tagid(MT MT' MTS)      = tagid(MT) ; tagid(MT' MTS) .
+  eq tagid(.MetadataTagSet) = none .
+  eq tagid(MTSK)            = qidErrMsg('ill-formed 'metadata 'tags) [owise] .
+endfm
+
+fmod METADATA-PARSER is
+  pr META-PARSE .
+  pr METADATA-TAGS .
+  pr TERM-EXTRA .
+  pr OPDECL-EXTRA .
+
+  var S : String .
+  var TL TL' : TermList .
+  var MT MT' : MetadataTag .
+  var MTS : MetadataTagSet .
+  var M : Module .
+  var OD : OpDecl .
+  var AS : AttrSet .
+
+  op metadataTagModule : -> Module .
+  ----------------------------------
+  eq metadataTagModule = upModule('METADATA-TAGS,false) .
+
+  op $parseMetadataTags : String ~> MetadataTagSet .
+  --------------------------------------------------
+  eq $parseMetadataTags(S) =
+    downTerm(getTerm(metaParse(metadataTagModule,S + " .MetadataTagSet",'MetadataTagSet)),
+      .MetadataTagSetErr('Parse 'Failure)) .
+
+  op fixupMetadataTags : MetadataTagSet ~> MetadataTagSet .
+  ---------------------------------------------------------
+  eq fixupMetadataTags(-fvp(TL) -fvp      MTS) = .MetadataTagSetErr('Ambiguous 'FVP 'Specification) .
+  eq fixupMetadataTags(-varsat            MTS) = -varsat fixupMetadataTags(-fvp MTS) .
+  eq fixupMetadataTags(MT MT              MTS) = .MetadataTagSetErr('Duplicate 'Metadata 'Tag) .
+  eq fixupMetadataTags(-fvp(TL) -fvp(TL') MTS) = .MetadataTagSetErr('Duplicate 'Metadata 'Tag) .
+  eq fixupMetadataTags(                   MTS) = MTS [owise] .
+
+  op wellFormed : Module MetadataTagSet -> Bool .
+  -----------------------------------------------
+  eq wellFormed(M,-fvp(TL) MTS) = wellFormedList(M,TL) and-then wellFormed(M,MTS) .
+  eq wellFormed(M,MTS)          = true [owise] .
+
+  op parseMetadataTags : Module OpDecl         ~> MetadataTagSet .
+  op parseMetadataTags : Module String         ~> MetadataTagSet .
+  op parseMetadataTags : Module MetadataTagSet ~> MetadataTagSet .
+  ----------------------------------------------------------------
+  eq parseMetadataTags(M,OD)  = injectAttrTags(attrSet(OD),parseMetadataTags(M,metadataOwise(OD,""))) .
+  eq parseMetadataTags(M,S)   = parseMetadataTags(M,fixupMetadataTags($parseMetadataTags(S))) .
+  eq parseMetadataTags(M,MTS) = if wellFormed(M,MTS) then MTS else .MetadataTagSetErr('Metadata 'Tag 'Term 'Argument 'Ill-Formed) fi .
+
+  op injectAttrTags : AttrSet MetadataTagSet ~> MetadataTagSet .
+  --------------------------------------------------------------
+  eq injectAttrTags(ctor AS,MTS) = injectAttrTags(AS,-ctor -fvp MTS) .
+  eq injectAttrTags(AS,     MTS) = MTS [owise] .
+endfm
+
+fmod MODULE-MAP is
+  pr UNIT-FM .
+  pr META-FUNCTION-WRAPPER .
+  pr METADATA-PARSER .
+  pr RENAME-TERM-AUX .
+  pr MAP-EXTRA{Qid,Module} * (sort Map{Qid,Module} to ModuleMap) .
+
+  var U : Module .
+  var T : Term .
+  var Q : Qid .
+  var QS : QidSet .
+  var QSK : [QidSet] .
+  var OD : OpDecl .
+  var ODS : OpDeclSet .
+  var E : Equation .
+  var ES ES' : EquationSet .
+  var MQM MQM' : ModuleMap .
+  var MTS : MetadataTagSet .
+
+  op errModMap : QidList -> [ModuleMap] [ctor] .
+
+  --- OUT: takes a module with labelled operators
+  ---      and builds a map of labels to modules
+  ---      where each mapped module is a submodule
+  ---      of the input module and contains only
+  ---      operators with given label and equations
+  ---      that apply to those operators
+  --- NOTE: labels fall into two categories:
+  --- [1] generated by tagid() function from a MetadataTag
+  --- [2] an implicit label added by addImplicitModules()
+  op buildModMap : Module -> ModuleMap .
+  op buildModMap : Module OpDeclSet ModuleMap ~> ModuleMap .
+  ----------------------------------------------------------------------
+  eq buildModMap(U) = buildModMap(U,getOps(U),empty) .
+  eq buildModMap(U,OD ODS,MQM) = buildModMap(U,ODS,updateModMap(U,OD,tagid(parseMetadataTags(U,OD)),MQM)) .
+  eq buildModMap(U,none,  MQM) = renameVars(addImplicitModules(U,MQM)) .
+
+  op updateModMap : Module OpDecl QidSet ModuleMap ~> ModuleMap .
+  ---------------------------------------------------------------------------
+  eq updateModMap(U,OD,QSK,MQM) =
+    if QSK :: QidSet
+      then updateModMap2(U,OD,QSK,getUnifyingEqs(U,buildTerm(OD,0)),MQM)
+      else errModMap('Failed 'to 'parse 'metadata 'for qid(OD))
+    fi .
+
+  op updateModMap2 : Module OpDecl QidSet EquationSet ModuleMap ~> ModuleMap .
+  ----------------------------------------------------------------------------------------
+  eq updateModMap2(U,OD,Q ; QS,ES,MQM) = updateModMap2(U,OD,QS,ES,insert(Q,updateModMap3(U,OD,Q,ES,MQM),MQM)) .
+  eq updateModMap2(U,OD,none,  ES,MQM) = MQM .
+
+  op updateModMap3 : Module OpDecl Qid EquationSet ModuleMap -> Module .
+  ----------------------------------------------------------------------------
+  eq updateModMap3(U,OD,Q,ES,MQM) = addEqs(ES,addOps(OD,MQM [Q,setOps(getSig(U),none)])) .
+
+  op getUnifyingEqs : Module Term -> EquationSet .
+  op getUnifyingEqs : Module Term EquationSet EquationSet -> EquationSet .
+  ------------------------------------------------------------------------
+  eq getUnifyingEqs(U,T)          = getUnifyingEqs(U,T,getEqs(U),none) .
+  eq getUnifyingEqs(U,T,E ES,ES') = getUnifyingEqs(U,T,ES,ES' (E << p2(safeDisjUnifiers(U,T =? lhs(E))))) .
+  eq getUnifyingEqs(U,T,none,ES') = ES' .
+
+  op addImplicitModules : Module ModuleMap ~> ModuleMap .
+  -------------------------------------------------------
+  eq addImplicitModules(U,MQM) =
+    if haskey('top,MQM) == true
+      then errModMap('Implicit 'module 'key 'taken)
+      else insert('top, U, MQM)
+    fi .
+
+  op renameVars  : ModuleMap -> ModuleMap .
+  op $renameVars : ModuleMap ModuleMap -> ModuleMap .
+  ---------------------------------------------------------------------
+  eq renameVars(MQM) = $renameVars(MQM,empty) .
+  eq $renameVars((Q |-> U,MQM),MQM') = $renameVars(MQM,(MQM',Q |-> renameVars(U))) .
+  eq $renameVars(empty,MQM')         = MQM' .
+endfm
+
+fmod BASIC-TYPED-VALUE is
+  pr META-LEVEL .
+  pr TERMSET-FM .
+  pr QIDSET-REFINEMENT .
+  pr SUBSTITUTION-REFINEMENT .
+  pr GTERMLIST-REFINEMENT .
+  pr SUBSTITUTIONPAIRSET .
+  pr OP-FAMILY .
+  pr EQ-FAMILY .
+  pr MODULE-MAP .
+
+  sort TypedVal .
+
+  op Constant@            : Constant            -> TypedVal [ctor] .
+  op Variable@            : Variable            -> TypedVal [ctor] .
+  op Term@                : Term                -> TypedVal [ctor] .
+  op TermList@            : TermList            -> TypedVal [ctor] .
+  op TermSet@             : TermSet             -> TypedVal [ctor] .
+  op Sort@                : Sort                -> TypedVal [ctor] .
+  op Kind@                : Kind                -> TypedVal [ctor] .
+  op Type@                : Type                -> TypedVal [ctor] .
+  op TypeList@            : TypeList            -> TypedVal [ctor] .
+  op SortSet@             : SortSet             -> TypedVal [ctor] .
+  op KindSet@             : KindSet             -> TypedVal [ctor] .
+  op TypeSet@             : TypeSet             -> TypedVal [ctor] .
+  op Qid@                 : Qid                 -> TypedVal [ctor] .
+  op QidList@             : QidList             -> TypedVal [ctor] .
+  op QidSet@              : QidSet              -> TypedVal [ctor] .
+  op Substitution@        : Substitution        -> TypedVal [ctor] .
+  op SubstitutionSet@     : SubstitutionSet     -> TypedVal [ctor] .
+  op SubstitutionPair@    : SubstitutionPair    -> TypedVal [ctor] .
+  op SubstitutionPairSet@ : SubstitutionPairSet -> TypedVal [ctor] .
+  op OpDecl@              : OpDecl              -> TypedVal [ctor] .
+  op OpDeclSet@           : OpDeclSet           -> TypedVal [ctor] .
+  op MembAx@              : MembAx              -> TypedVal [ctor] .
+  op MembAxSet@           : MembAxSet           -> TypedVal [ctor] .
+  op Equation@            : Equation            -> TypedVal [ctor] .
+  op EquationSet@         : EquationSet         -> TypedVal [ctor] .
+  op Rule@                : Rule                -> TypedVal [ctor] .
+  op RuleSet@             : RuleSet             -> TypedVal [ctor] .
+  op Module@              : Module              -> TypedVal [ctor] .
+  op ModuleMap@           : ModuleMap           -> TypedVal [ctor] .
+  op OpFamilyMap@         : OpFamilyMap         -> TypedVal [ctor] .
+  op EqFamilyMap@         : EqFamilyMap         -> TypedVal [ctor] .
+endfm
+
+fmod TYPED-DICTIONARY is
+  pr BASIC-TYPED-VALUE .
+  pr BOOL .
+  pr QID .
+  sort DictMapping TypedDict .
+  subsort DictMapping < TypedDict .
+
+  op noVal : -> [TypedVal] [ctor] .
+  op _:_ : Qid TypedVal -> DictMapping [ctor] .
+  op _,_ : TypedDict TypedDict -> TypedDict [ctor assoc comm id: none] .
+  op none : -> TypedDict [ctor] .
+
+  var D : TypedDict . var K : Qid . var X Y : TypedVal .
+
+  op has? : TypedDict Qid -> Bool .
+  ---------------------------------
+  eq has?((D,K : X),K) = true .
+  eq has?(D,        K) = false [owise] .
+
+  op set : TypedDict DictMapping ~> TypedDict .
+  ---------------------------------------------
+  eq set((D,K : X),K : Y) = D,K : X .
+
+  op add : TypedDict DictMapping ~> TypedDict .
+  ---------------------------------------------
+ ceq add(D,K : X) = D,K : X if has?(D,K) == false .
+
+  op get : TypedDict Qid -> [TypedVal] .
+  --------------------------------------
+  eq get((D,K : X),K) = X .
+  eq get( D,       K) = noVal [owise] .
+
+  op get : TypedDict Qid TypedVal -> TypedVal .
+  ---------------------------------------------
+  eq get((D,K : X),K,Y) = X .
+  eq get((D),      K,Y) = Y [owise] .
 endfm

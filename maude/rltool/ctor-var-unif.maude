@@ -18,14 +18,14 @@ fmod CTOR-VARIANT is
   pr META-LEVEL .
   pr MGCI .
   pr TERMSET-FM .
-  pr EQ-VARIANT .
+  pr META-FUNCTION-WRAPPER .
   pr UNIFICATION-PROBLEM-AUX . --- UnifProbLHSToTL
   pr HETEROGENEOUS-LIST-FUNCTOR . --- toHL, hl-func
 
   op  ctor-variants : Module Term -> VariantTripleSet .
   op $ctor-variants : Module VariantTripleSet VariantTripleSet -> VariantTripleSet .
   op  ctor-unifiers : Module UnificationProblem ~> SubstitutionSet .
-  op $ctor-unifiers : Module Term SubstSetNatPair ~> SubstitutionSet .
+  op $ctor-unifiers : Module Term SubstitutionSet ~> SubstitutionSet .
 
   var M : Module .
   var T : Term .
@@ -39,8 +39,8 @@ fmod CTOR-VARIANT is
 
   --- OUT: a set of constructor variants computed by computing all regular variants
   ---      and then copmuting their most general constructor instances of those terms
-  eq ctor-variants(M,T) = $ctor-variants(M,variants(M,T),empty) .
-  eq $ctor-variants(M,{T,S,I,P,B} | VS,VS') = $ctor-variants(M,VS,VS' | applySubs({T,S,I,P,B},mgci(M,T,s(I)))) .
+  eq ctor-variants(M,T) = $ctor-variants(M,safeVariants(M,false,T,empty),empty) .
+  eq $ctor-variants(M,{T,S,I,P,B} | VS,VS') = $ctor-variants(M,VS,VS' | ({T,S,I,P,B} << mgci(M,T))) .
   eq $ctor-variants(M,empty,VS') = VS' .
 
   --- OUT: a set of constructor variant unifiers computed by first computing all of the regular
@@ -49,11 +49,9 @@ fmod CTOR-VARIANT is
   ---      [2] applying the regular unifiers to the lifted list
   ---      [3] computing the most general substitutions mapping the lifted list into constructors
   ---      [4] composing the constructor substitutions with their original unifiers
-  eq ctor-unifiers(M,UP) = $ctor-unifiers(hl-func(M),toHL(M,UnifProbLHSToTL(UP)),#var-unifiers(M,UP)) .
+  eq ctor-unifiers(M,UP) = $ctor-unifiers(hl-func(M),toHL(M,UnifProbLHSToTL(UP)),safeVariantUnifiers(M,UP,empty)) .
 
   --- Apply steps [2-4] above where the SubstSetNatPair is all the standard variant unifiers
-  eq $ctor-unifiers(M,T,ssnp(S | SS,I)) =
-    (S << mgci(M,getTerm(metaReduce(M,T << S)),I)) |
-    $ctor-unifiers(M,T,ssnp(SS,I)) .
-  eq $ctor-unifiers(M,T,ssnp(empty,I)) = empty .
+  eq $ctor-unifiers(M,T,S | SS) = (S << mgci(M,getTerm(metaReduce(M,T << S)))) | $ctor-unifiers(M,T,SS) .
+  eq $ctor-unifiers(M,T,empty ) = empty .
 endfm

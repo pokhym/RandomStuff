@@ -137,44 +137,9 @@ fmod QIDTUPLESET is
   eq p2QPS(none) = none .
 endfm
 
-fmod STRING-EXTRA is
-  pr STRING .
-  pr NAT .
-
-  op insert    : String Nat Nat String -> String .
-
-  op replace   : String String String ~> String .
-  op replace   : String String String Nat ~> String .
-  op $replace1 : String String Nat String Nat FindResult Nat Nat -> String .
-  op $replace? : String String Nat String Nat Nat Nat Nat -> String .
-
-  var S O R : String .
-  var N L1 L2 P1 P2 I C : Nat .
-
-  --- INP: String1 Nat1 Nat2 String2
-  --- PRE: None
-  --- OUT: Replaces substr(String1,Nat1,sd(Nat2,Nat1)) with String2
-  eq insert(S,P1,P2,R) = substr(S,0,P1) + R + substr(S,P2,length(S)) .
-
-  --- INP: String0 String1 String2 [Nat]
-  --- PRE: None
-  --- OUT: Replaces first [Nat] occurences of String1 with String2 in String0
-  eq replace(S,O,R) = replace(S,O,R,length(S)) .
-  ceq replace(S,O,R,N) =
-    if N == 0 then
-      S
-    else
-      $replace1(S,O,length(O),R,length(R),find(S,O,0),0,s(N))
-    fi
-  if O =/= "" .
-  eq $replace1(S,O,L1,R,L2,notFound,C,N) = S .
-  eq $replace1(S,O,L1,R,L2,I,C,N) = $replace?(insert(S,I,I + L1,R),O,L1,R,L2,I,s(C),N) .
-  eq $replace?(S,O,L1,R,L2,I,C,N) =
-    if C < N then
-      $replace1(S,O,L1,R,L2,find(S,O,I + L2),C,N)
-    else
-      S
-    fi .
+fmod STRING-MAP is
+  pr MAP{String,String} *
+    (sort Map{String,String} to StringMap) .
 endfm
 
 fmod STRING-PAIR is
@@ -215,56 +180,56 @@ fmod STRING-LIST is
   eq split(S,S',L,       SL) = split(substr(S,L + length(S'),length(S)),S',SL substr(S,0,L)) .
 endfm
 
---- NOTE: these are used for creating views from the empty theory
----       into the empty module so that Maude will automatically
----       rename sorts for us in parameterized modules
-fmod EMPTY-MOD is endfm
-fth  EMPTY     is endfth
+fmod STRING-EXTRA is
+  pr STRING .
+  pr NAT .
+  pr STRING-MAP .
 
---- NOTE: this module is declared over an empty theory
----       because that allows us to create isomorphic copies
----       of this sort and the only operator which will
----       fail the sensibility criterion is the reference
----       operator since it has a shared domain Qid
---- NOTE: after this module is instantiated, the user
----       will need to add injections into the value sort, e.g.
----       for a view called MyView, we will need:
----
----       op ty : Type -> TypedVal{MyView} .
----
----       for each Type we want to put into the dictionary.
----       If wanted, can also add:
----
----       op @ty : TypedDict{MyView} NamedValRef{X} -> Type .
----
----       Note any injections/projections with the same name
----       on isormorphic copies of Dict will clash.
-fmod TYPED-DICTIONARY{X :: EMPTY} is
-  pr QID .
-  sort TypedVal{X} NamedVal{X} NamedRef{X} .
-  sort NamedValRef{X} .
-  sort TypedDict{X} .
-  subsort NamedVal{X} NamedRef{X} < NamedValRef{X} .
-  subsort NamedVal{X} < TypedDict{X} .
+  op insert    : String Nat Nat String -> String .
 
-  ---# Define typed dictionary ctors
-  op @_ : Qid -> NamedRef{X} [ctor] .
-  op _:_ : Qid TypedVal{X} -> NamedVal{X} [ctor] .
-  op _,_ : TypedDict{X} TypedDict{X} -> TypedDict{X} [ctor assoc comm id: none] .
-  op none : -> TypedDict{X} [ctor] .
+  op replace   : String String String ~> String .
+  op replace   : String String String Nat ~> String .
+  op $replace1 : String String Nat String Nat FindResult Nat Nat -> String .
+  op $replace? : String String Nat String Nat Nat Nat Nat -> String .
 
-  ---# Declare typed dictionary basic operations
-  op set : TypedDict{X} NamedVal{X} -> TypedDict{X} .
-  op get : TypedDict{X} NamedValRef{X} -> [TypedVal{X}] .
-  op getdef : TypedDict{X} NamedVal{X} -> TypedVal{X} .
+  var S O R : String .
+  var N L1 L2 P1 P2 I C : Nat .
+  var SM : StringMap .
 
-  ---# Declare variables
-  var D : TypedDict{X} . var K : Qid . var V V' : TypedVal{X} .
-  eq set((D,K : V),K : V') = D,K : V .
-  eq get(D,K : V) = V .
-  eq get((D,K : V),@ K) = V .
-  eq getdef((D,K : V),K : V') = V .
-  eq getdef(D,K : V') = V' [owise] .
+  --- INP: String1 Nat1 Nat2 String2
+  --- PRE: None
+  --- OUT: Replaces substr(String1,Nat1,sd(Nat2,Nat1)) with String2
+  eq insert(S,P1,P2,R) = substr(S,0,P1) + R + substr(S,P2,length(S)) .
+
+  --- INP: String0 String1 String2 [Nat]
+  --- PRE: None
+  --- OUT: Replaces first [Nat] occurences of String1 with String2 in String0
+  eq replace(S,O,R) = replace(S,O,R,length(S)) .
+  ceq replace(S,O,R,N) =
+    if N == 0 then
+      S
+    else
+      $replace1(S,O,length(O),R,length(R),find(S,O,0),0,s(N))
+    fi
+  if O =/= "" .
+  eq $replace1(S,O,L1,R,L2,notFound,C,N) = S .
+  eq $replace1(S,O,L1,R,L2,I,C,N) = $replace?(insert(S,I,I + L1,R),O,L1,R,L2,I,s(C),N) .
+  eq $replace?(S,O,L1,R,L2,I,C,N) =
+    if C < N then
+      $replace1(S,O,L1,R,L2,find(S,O,I + L2),C,N)
+    else
+      S
+    fi .
+
+  op replaceAll : String StringMap -> String .
+  eq replaceAll(S,(O |-> R, SM)) = replaceAll(replace(S,O,R),SM) .
+  eq replaceAll(S,empty)         = S .
+
+  op alpha : String -> String .
+  eq alpha(S) = replaceAll(S, (("_" |-> ""), ("`," |-> "comma") ,
+                               ("`[" |-> "lbracket") , ("`]" |-> "rbracket") ,
+                               ("`(" |-> "lparen") , ("`)" |-> "rparen") ,
+                               ("`{" |-> "lbrace") , ("`}" |-> "rbrace"))) .
 endfm
 
 fmod TREE-INDEX{X :: TRIV} is

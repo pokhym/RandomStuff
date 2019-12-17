@@ -217,4 +217,3 @@ mod NONSEQ-IMP-SEMANTICS is
  crl [@add-rght] : < AE +: AE' ~> K | E >         => < AE' ~> AE +: []   ~> K | E > if val?(AE) = false .
   rl [#add-rght] : < N  ~> AE +: []   ~> K | E >  => < AE +: N  ~> K | E > .
 endm
-rew < while (x <: x,,,) {x = x +: 1 ; x,, = x,, +: x, ;} ~> done | x |-> x  *  x, |-> x * x,, |-> x  * x,,, |-> x >) .

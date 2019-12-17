@@ -5,8 +5,9 @@ load prelude-aux.maude    --- library of extensions to Maude's prelude
 
 load meta-aux.maude       --- library of extensions to Maude's META-LEVEL module
 load unsortify.maude      --- code to send ordersorted terms to unsorted and back
-load renaming.maude       --- next-gen renaming library
 load sort-ops.maude       --- empty and finite sort constructions
+
+load raul-shared.maude    --- shared library for Raul's tools
 
 load mgci.maude           --- most general constructor instance operation
 load ctor-var-unif.maude  --- computing constructor variants and unifiers

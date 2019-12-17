@@ -217,9 +217,7 @@ fmod CONG-CLOSURE-LIB is
   pr CTOR-REFINE .
   pr CONG-CLOSURE-SAFETY .
   pr CONG-CLOSURE-ENRICHMENT .
-  pr CONG-CLOSURE *
-     (op `[_`,_`] to mr,
-      op `{_`} to res) .
+  pr CONG-CLOSURE . ---@ * (op `[_`,_`] to mr, op `{_`} to res) .
   pr REMOVE-IDS .
 
   var U UCC CU : Module .
@@ -247,7 +245,7 @@ fmod CONG-CLOSURE-LIB is
   op congClosure : Module Bool PosEqConj? -> CCResult .
   eq congClosure(U,B,mtForm) = (U,none,none) .
   eq congClosure(U,B,TA)     = (U,none,none) .
-  eq congClosure(U,B,PC) =
+  eq congClosure(U,B,PC)     =
     if ccModData(U) :: QidSet and-then wellFormed(U,PC)
       then congClosure1(U,B,ccModData(U),PC)
       else errCCResult(qidErrMsg(ccModData(U)))
@@ -265,16 +263,19 @@ fmod CONG-CLOSURE-LIB is
                  S,
 		 unsortify-1(pruneBool(getSig(UCC))) | unsortify-1(pruneBool(getSig(UCC)),vars(ID-ES)),
 		 init-acu-cc(
-		   unsortify(pruneBool(getSig(UCC))),
+		   ccUnsortifyM(UCC),
 		   markVarConstsAsCtors(getVarConsts(S),pruneBool(getSig(UCC))),
 		   unsortify-1(pruneBool(getSig(UCC))) | unsortify-1(pruneBool(getSig(UCC)),vars(ID-ES)),
 		   S,
 		   B,
 		   unsortify(pruneBool(getSig(UCC)),ID-ES),
 		   unsortify(pruneBool(getSig(UCC)),IDS),
-		   toMRules(unsortify(pruneBool(getSig(UCC))),ctor-refine(markVarConstsAsCtors(getVarConsts(S),pruneBool(getSig(UCC)))),
+		   toMRules(ccUnsortifyM(UCC),ctor-refine(markVarConstsAsCtors(getVarConsts(S),pruneBool(getSig(UCC)))),
 		     unsortify-1(pruneBool(getSig(UCC))) | unsortify-1(pruneBool(getSig(UCC)),vars(ID-ES)),S,
 		     B,unsortify(pruneBool(getSig(UCC)),PC << S)))) .
+
+  op ccUnsortifyM : Module -> Module .
+  eq ccUnsortifyM(U) = unsortify(pruneBool(getSig(setOps(U,addAttrs(ctor,getOps(U)))))) .
 
   op congClosure3 : Module Substitution QidPairSet CCState -> CCResult .
   eq congClosure3(UCC,S,U2OMap,[ES,N,MRL]) =

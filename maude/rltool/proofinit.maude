@@ -8,7 +8,6 @@ fmod REACH-PROOF-INIT is
   pr REACH-PROOF-STATE-OPS .
   pr RLTOOL-BACKEND-IMPL .
 
-  var T T1 T2 T3 T4 T5 : Term . var F1 F2 F3 F4 F5 : FindResult .
   var U : Module . var RT : ProofStrat . var PS : ProofGoalStatus . var B : Bool . var N : Nat .
 
   var F : ReachForm . var TST' : QFCTermSet .
@@ -16,6 +15,8 @@ fmod REACH-PROOF-INIT is
   var CRL CRL' AXL AXL' : LabelReachFormList . var ARS ARS' : LabelLCCRuleSet .
   var D : ProofMetadata .
   var GS : ProofGoalSet .
+  var D1 D2 : NameData .
+  var S : Substitution .
 
   --- PRE: Arguments are well-defined with respect to Module
   --- OUT: Initialize our proof state with goals from axioms
@@ -36,21 +37,11 @@ fmod REACH-PROOF-INIT is
     fi fi fi fi .
 
   op init : Module ProofMetadata -> ProofMetadata .
- ceq init(U,D) = set(D,rls(ARS') ; tst(TST') ; axs(AXL') ;  prf(GS) ;  cnt(N) ; gn(1 + size(GS)))
-  if U               =/= noModule
-  --- rename variables to be fresh with respect to each other
-  /\ ARS             := abstract-rules(U,abstractRules)                                         --- abstracted rewrite rules
-  /\ termdata(T1,F1) := #renameAllVar(U,highestSVar(U,upTerm(getbody(get-prf(D)))),upTerm(ARS)) --- renamed abstracted rewrite rules
-  /\ termdata(T2,F2) := #renameAllVar(U,F1,upTerm(get-tst(D)))                                  --- renamed final state pattern
-  /\ termdata(T3,F3) := #renameAllVar(U,F2,upTerm(get-axs(D)))                                  --- renamed axioms
-  --- rename these variables to be fresh with respect to above without prefixes
-  /\ termdata(T4,F4) := #renameTmpVar(U,F3,upTerm(get-prf(D)))
-  --- get all of the transformed values
-  /\ ARS'            := downTerm(T1,(empty).LabelLCCRuleSet)
-  /\ TST'            := downTerm(T2,(''Err.Qid | mtForm))
-  /\ AXL'            := downTerm(T3,(nil).LabelRuleEmptyList)
-  /\ GS              := downTerm(T4,(mt).ProofGoalSet)
-  /\ N               := if F4 == notFound then 0 else F4 fi .
+ ceq init(U,D) = set(D,on(true) ; rls(ARS') ; tst(TST') ; axs(AXL') ;  prf(GS) ;  cnt(N) ; gn(1 + size(GS)))
+  if [D1,   ARS'] := renameVarsLS(nullNameData,abstract-rules(U,abstractRules)) --- abstracted rewrite rules
+  /\ [D2,   TST'] := #renameVars(D1,get-tst(D))                                 --- renamed final state pattern
+  /\ [[N,S],AXL'] := renameVarsLL(D2,get-axs(D))                                --- renamed axioms
+  /\ GS           := renameNormalizeGoal(U,N,get-prf(D)) .                     --- renamed goals
 
   eq init(U,D) = raw-set(D,st(err) ; out('Internal 'Error: 'init' 'failed)) [owise] .
 endfm

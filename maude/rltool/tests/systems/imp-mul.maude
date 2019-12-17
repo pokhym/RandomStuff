@@ -13,30 +13,9 @@ load ../../rltool.maude
 (declare-vars (X:Nat) U (Y:Nat) U (S:Nat) U (X':Nat) U (S':Nat) U (MAX:Nat) .)
 
 (add-goal loop : (< while (x <: x,,,) {x = x +: 1 ; x,, = x,, +: x, ;} ~> done
-                    | x |-> X  *  x, |-> Y * x,, |-> S  * x,,, |-> MAX >) | 
-                        ( (x <: x,,,) = (true) /\ (!(0 <: x)) = (true) /\ (x,, = x,,, *: x,;) = (true) ) =>
+                    | x |-> X  *  x, |-> Y * x,, |-> S  * x,,, |-> MAX >) | ( INSERT LOOP INVARIANT HERE ) =>
                  (< done
-		    | x |-> X' *  x, |-> Y * x,, |-> S' * x,,, |-> MAX >) | (S) = (MAX * Y) .) 
+		    | x |-> X' *  x, |-> Y * x,, |-> S' * x,,, |-> MAX >) | INSERT MULTIPLICATION CORRECTNESS POST-CONDITION HERE .) 
 (start-proof .)
 
-(auto .)
-
---- while(x < x,,,) {
----     x = x + 1;
----     x,, = x,, + x, ;
---- }
-
---- method asdf(x3: nat, x1: nat ) returns(x2: nat)
----   ensures x2 == x3 * x1
---- {
----   var x := 0;
----   x2 := 0;
----    while(x < x3)
----     invariant 0 <= x <= x3
---- //    invariant (x3 - x) * x1 + x2 == x3 * x1
----     invariant x1 * x == x2
----   {
----       x := x + 1;
----       x2 := x2 + x1;
----   }
---- }
+PROOF SCRIPT FOLLOWS HERE

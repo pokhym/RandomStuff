@@ -845,46 +845,11 @@ fmod FOFORMSUBSTITUTION-PAIRSET is
   eq idem(errFOFormSubstPair(QL) | FK) = errFOFormSubstPair(QL) .
 endfm
 
-fmod FOFORM-RENAME is
-  pr FOFORM .
-  pr RENAME-METAVARS .
-  op renameAllVar : Module FindResult FOForm? -> FOForm? .
-  op renameTmpVar : Module FindResult FOForm? -> FOForm? .
-  op unwrapFOForm : TermData                  -> FOForm? .
-  var U : Module . var F : FOForm? . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,F) = unwrapFOForm(#renameAllVar(U,N,upTerm(F))) .
-  eq renameTmpVar(U,N,F) = unwrapFOForm(#renameTmpVar(U,N,upTerm(F))) .
-  eq unwrapFOForm(termdata(T,N)) = downTerm(T,error("Rename failed")) .
-endfm
-
-fmod FOFORMSET-RENAME is
-  pr FOFORMSET .
-  pr FOFORM-RENAME .
-  op renameAllVar    : Module FindResult FOForm?Set -> FOForm?Set .
-  op renameTmpVar    : Module FindResult FOForm?Set -> FOForm?Set .
-  op unwrapFOFormSet : TermData                     -> FOForm?Set .
-  var U : Module . var F : FOForm?Set . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,F) = unwrapFOFormSet(#renameAllVar(U,N,upTerm(F))) .
-  eq renameTmpVar(U,N,F) = unwrapFOFormSet(#renameTmpVar(U,N,upTerm(F))) .
-  eq unwrapFOFormSet(termdata(T,N)) = downTerm(T,error("Rename failed")) .
-endfm
-
-fmod FOFORMBASICLIST-RENAME is
-  pr FOFORMBASICLIST .
-  pr FOFORM-RENAME .
-  op renameAllVar     : Module FindResult FOForm?List -> FOForm?List .
-  op renameTmpVar     : Module FindResult FOForm?List -> FOForm?List .
-  op unwrapFOFormList : TermData                      -> FOForm?List .
-  var U : Module . var F : FOForm?List . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,F) = unwrapFOFormList(#renameAllVar(U,N,upTerm(F))) .
-  eq renameTmpVar(U,N,F) = unwrapFOFormList(#renameTmpVar(U,N,upTerm(F))) .
-  eq unwrapFOFormList(termdata(T,N)) = downTerm(T,error("Rename failed")) .
-endfm
-
 fmod FQF-IMPL is
   pr FOFORM-SUBSTITUTION .
+  pr FOFORM-OPERATIONS .
   pr FOFORM-TUPLES .
-  pr FOFORM-RENAME .
+  pr RENAME-TERM .
   op renameQuantifiers : Module FOForm?   -> FOForm? .
   op $rq  : FOFormNatPair                 -> FOForm? .
   op $rq  : Nat FOForm?                   -> FOFormNatPair .
@@ -898,7 +863,7 @@ fmod FQF-IMPL is
   var N : Nat . var S S' : QidSet . var P : QFForm?  . var M : Module .
   --- entry point
   eq renameQuantifiers(M,P)  = P .
-  eq renameQuantifiers(M,F)  = $rq($rq(0,renameAllVar(M,notFound,F))) [owise] .
+  eq renameQuantifiers(M,F)  = $rq($rq(0,F << freshifyVars(0,vars(F)))) [owise] .
   --- dispatch handlers for different cases
   eq $rq((F,N))            = F .
   eq $rq(N,P:QFForm?)      = (P:QFForm?,N) .
@@ -916,7 +881,7 @@ fmod FQF-IMPL is
   eq $rq1('~,(F,N))        = (~ F,N) .
   --- quantifiers
   eq $rqQ(Q,(F,N),S)       = $rqQ(Q,N,F,S,none)   .
-  eq $rqQ(Q, N,F,X ; S,S') = $rqQ(Q,s(N),F << (X <- tmpvar(N,X)),S,S' ; tmpvar(N,X)) .
+  eq $rqQ(Q, N,F,X ; S,S') = $rqQ(Q,s(N),F << (X <- rvTmpVar(N,X)),S,S' ; rvTmpVar(N,X)) .
   eq $rqQ('A,N,F,none, S') = (A[S'] F,N) .
   eq $rqQ('E,N,F,none, S') = (E[S'] F,N) .
 endfm
@@ -1341,7 +1306,7 @@ fmod VAR-UNIF-PARTIAL-FVP is
   pr TERMPAIRSET .
   pr STRING-LIST .
   pr META-PARSE .
-  pr UNIFIERS .
+  pr META-FUNCTION-WRAPPER .
 
   var U : Module .
   var PC : PosConj .
@@ -1465,8 +1430,8 @@ fmod FOFORM-PRINTER is pr FOFORM . pr GENERIC-PRINTER .
   eq print(M,A \/ C)           = printDisj(M,A \/ C) .
   eq print(M,F /\ F')          = '`( print(M,F) '/\ print(M,F') '`) [owise] .
   eq print(M,F \/ F')          = '`( print(M,F) '\/ print(M,F') '`) [owise] .
-  eq print(M,T ?= T')          = printTerm(M,T) '=   printTerm(M,T') .
-  eq print(M,T != T')          = printTerm(M,T) '=/= printTerm(M,T') .
+  eq print(M,T ?= T')          = printDisambiguatedTerm(M,T) '=   printDisambiguatedTerm(M,T') .
+  eq print(M,T != T')          = printDisambiguatedTerm(M,T) '=/= printDisambiguatedTerm(M,T') .
   eq print(M,~ F)              = '~ print(M,F) .
   eq print(M,mtForm)           = 'true .
   eq print(M,tt)               = 'true .
@@ -1616,28 +1581,60 @@ fmod FOFORM-CORE-PRETTYPRINT is
 endfm
 
 fmod RENAME-FORM is
-  pr RENAME-METAVARS .
   pr FOFORMSET .
   pr RENAME-TERM .
   pr FOFORM-OPERATIONS .
   pr FOFORM-SUBSTITUTION .
-  var M : Module . var F? : FOForm? . var F?S F?S' : FOFormSet . var CS : ConjSet . var N : Nat .
+  var M : Module . var F? : QFForm? . var F?S F?S' : FOFormSet . var CS : ConjSet .
+  var F1 F2 : FOForm . var Q : Qid . var T1 T2 : Term .
+  var N : Nat . var S : Substitution . var D : NameData .
 
-  --- ### New
-  op renameForm : Module ConjSet -> ConjSet .
-  op renameForm : Module FOForm? -> FOForm? .
-  op renameForm : Module Conj -> Conj .
-  eq renameForm(M,F?) = downTerm(renameTmpVar(M,upTerm(F?)),ff) .
-  eq renameForm(M,CS) = downTerm(renameTmpVar(M,upTerm(CS)),ff) .
+  sort RenamedQFForm RenamedQFFormSet .
+  subsort RenamedQFForm < RenamedQFFormSet .
+  op [_,_] : NameData QFForm? -> RenamedQFForm .
+  op [_,_] : NameData QFForm?Set -> RenamedQFFormSet .
+  ----------------------------------------------------
+  op rvGetObj : RenamedQFFormSet -> QFForm?Set .
+  eq rvGetObj([D,F?S]) = F?S .
 
-  op renameVars : FOForm?Set -> FOForm?Set .
-  op renameVars : Nat FOForm?Set -> FOForm?Set .
-  op renameVars : Nat FOForm?Set FOForm?Set -> FOForm?Set .
+  op renameVars : QFForm? -> QFForm? .
+  op renameVars : NameData QFForm? -> QFForm? .
+  ---------------------------------------------
+  eq renameVars(F?) = renameVars(nullNameData,F?) .
+  eq renameVars(D,F?) = rvGetObj(#renameVars(D,F?)) .
+
+  op #renameVars : NameData QFForm? -> RenamedQFForm .
+  op rvRenameForm : RenamedQFForm Qid QFForm -> RenamedQFForm .
+  op rvRenameForm : QFForm Qid RenamedQFForm -> RenamedQFForm .
+  op rvRenameForm : Qid RenamedQFForm -> RenamedQFForm .
+  op rvRenameForm : RenamedTermList Qid -> RenamedQFForm .
+  --------------------------------------------------------
+  eq #renameVars(D,mtForm)   = [D,mtForm] .
+  eq #renameVars(D,F1 /\ F2) = rvRenameForm(#renameVars(D,F1),'/\,F2) .
+  eq #renameVars(D,F1 \/ F2) = rvRenameForm(#renameVars(D,F1),'\/,F2) .
+  eq #renameVars(D,~ F1)     = rvRenameForm('~,#renameVars(D,F1)) .
+  eq #renameVars(D,T1 ?= T2) = rvRenameForm(#renameVars(D,(T1,T2)),'?=) .
+  eq #renameVars(D,T1 != T2) = rvRenameForm(#renameVars(D,(T1,T2)),'!=) .
+  eq #renameVars(D,tt)       = [D,tt] .
+  eq #renameVars(D,ff)       = [D,ff] .
+
+  eq rvRenameForm([D,F1],Q,F2)     = rvRenameForm(F1,Q,#renameVars(D,F2)) .
+  eq rvRenameForm(F1,'/\,[D,F2])   = [D,F1 /\ F2] .
+  eq rvRenameForm(F1,'\/,[D,F2])   = [D,F1 \/ F2] .
+  eq rvRenameForm([D,(T1,T2)],'?=) = [D,T1 ?= T2] .
+  eq rvRenameForm([D,(T1,T2)],'!=) = [D,T1 != T2] .
+  eq rvRenameForm('~,[D,F1])       = [D,~ F1] .
+
+  op renameVars : NameData QFForm?Set -> QFForm?Set .
+  op renameVars : NameData QFForm?Set QFForm?Set -> QFForm?Set .
+  eq renameVars(D,F?S) = renameVars(D,F?S,mtFormSet) .
+  eq renameVars(D,F? | F?S,F?S')  = renameVars(D,F?S,F?S' | renameVars(D,F?)) .
+  eq renameVars(D,mtFormSet,F?S') = F?S' .
+
+  op renameVars : QFForm?Set -> QFForm?Set .
+  op renameVars : Nat QFForm?Set -> QFForm?Set .
   eq renameVars(F?S)   = renameVars(0,F?S) .
-  eq renameVars(N,F?S) = renameVars(N,F?S,mtFormSet) .
-
-  eq renameVars(N,F? | F?S, F?S') = renameVars(N,F?S,F?S' | (F? << freshifyVars(N,vars(F?)))) .
-  eq renameVars(N,mtFormSet,F?S') = F?S' .
+  eq renameVars(N,F?S) = renameVars([N,none],F?S) .
 endfm
 
 --- Views for some of our formula datatypes

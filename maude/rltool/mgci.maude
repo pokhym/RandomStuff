@@ -141,6 +141,7 @@ fmod MGCI is
   pr SUBSTITUTIONSET .
   pr SUBSTITUTIONSETPAIR .
   pr SUBSTITUTION-REFINEMENT .
+  pr META-FUNCTION-WRAPPER .
 
   var M CM : Module .
   var I J N : Nat .
@@ -150,29 +151,8 @@ fmod MGCI is
   var UP : UnificationProblem .
   var V : Variable .
 
-  --- OUT: generate a set of most general constructor instances
-  ---      where there are no bad variables in the initial term
   op mgci : Module Term -> SubstitutionSet .
-  eq mgci(M,T) = mgci(M,T,0) .
-
-  --- OUT: generate a set of most general constructor instances
-  ---      where Nat is greater than the index of all bad variables
-  ---      inside of the term to be analyzed
-  op mgci : Module Term Nat -> SubstitutionSet .
-  eq mgci(M,T,I) = $mgci(M,ctor-refine(M),T =? join('X ': ctor-sort(M,leastSort(M,T))),I) .
-
-  --- PRE: [1] CM is the constructor refinement of M
-  ---      [2] UP is a unification problem in the signature CM
-  --- OUT: the solutions of the unification problem in CM lifted up
-  ---      into corresponding substitutions in M
-  op $mgci : Module Module UnificationProblem Nat -> SubstitutionSet .
-  eq $mgci(M,CM,UP,I) = $mgci(M,CM,UP,0,metaDisjointUnify(CM,UP,I,0),empty) .
-
-  ---  NB: this implements the function above, looping over each
-  ---      generated unifier in the signature in CM
-  op $mgci : Module Module UnificationProblem Nat UnificationTriple SubstitutionSet -> SubstitutionSet .
-  eq $mgci(M,CM,UP,N,noUnifier,SS) = lift-sub(M,SS) .
-  eq $mgci(M,CM,UP,N,{S,S',I},SS)  = $mgci(M,CM,UP,s(N),metaDisjointUnify(CM,UP,s(I),s(N)),SS | S) .
+  eq mgci(M,T) = lift-sub(M,p1(disjUnifiers(ctor-refine(M),T =? join('X ': ctor-sort(M,leastSort(M,T)))))) .
 
   --- OUT: return true iff the term is a constructor term
   op ctor-term? : Module Term -> [Bool] .
@@ -219,7 +199,6 @@ endfm
 fmod DEFINED-SUBTERMS is
   pr META-LEVEL .
   pr MGCI .         --- used to find ctor subterms
-  pr GEN-VARNAMES . --- used to generate fresh variables
   pr QID-JOIN .
 
   --- used for term abstraction
@@ -260,7 +239,7 @@ fmod DEFINED-SUBTERMS is
   eq $dabsL(M,Q,(N,T,S),(T',TL),TL') = $dabsL(M,Q,$dabs(M,(N,T',S)),TL,(TL',T)) .
   eq $dabsL(M,Q,(N,T,S),empty,TL')   = (N,Q[TL',T],S) .
 
-  eq $bind(N,M,T,S) = $bind(N,tmpvar(N,M,T),T,S) .
+  eq $bind(N,M,T,S) = $bind(N,rvTmpVar(N,leastSort(M,T)),T,S) .
   eq $bind(N,V,T,S) = (s(N),V,V <- T ; S) .
 
   eq  tl2Vars(M,(T,TL)) = join('X: leastSort(M,T)),tl2Vars(M,TL) .

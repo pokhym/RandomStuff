@@ -119,8 +119,7 @@ fmod VAR-SAT is
   pr FIN-SORT-REWTH .
   pr FIN-SORT-SUBST .
   --- terms and unifiers
-  pr UNIFIERS .
-  pr RENAME-METAVARS .
+  pr META-FUNCTION-WRAPPER .
   pr TERM-EXTRA .
   pr EQUALITY-FUNCTOR .
 
@@ -171,7 +170,7 @@ fmod VAR-SAT is
   eq var-sat(M,FSS,ISS,QF)      = var-sat-opt(addDecls(emptyFModule,setRls(M,none)),fin-sorts(M,QF,FSS,ISS),QF) .
 
   --- NB: Special Pattern Recognition Before DNF conversion
- ceq var-sat-opt(FM,FSS,PC /\ NC? /\ D) = var-sat-opt(FM,FSS,disj-join(renameForm(FM,(NC? /\ D) << ctor-unifiers(FM,toUnifProb(PC)))))
+ ceq var-sat-opt(FM,FSS,PC /\ NC? /\ D) = var-sat-opt(FM,FSS,disj-join(renameVars((NC? /\ D) << ctor-unifiers(FM,toUnifProb(PC)))))
   if not PC :: ConstConj .
   eq var-sat-opt(FM,FSS,QF) = var-sat-disj(FM,FSS,simplify(toDNF(QF))) [owise] .
 
@@ -182,7 +181,7 @@ fmod VAR-SAT is
 
   eq var-sat-conj(FM,FSS,tt)       = true .
   eq var-sat-conj(FM,FSS,ff)       = false .
-  eq var-sat-conj(FM,FSS,PC /\ NC) = var-sat-conjset(FM,FSS,renameForm(FM,NC << ctor-unifiers(FM,toUnifProb(PC)))) .
+  eq var-sat-conj(FM,FSS,PC /\ NC) = var-sat-conjset(FM,FSS,renameVars(NC << ctor-unifiers(FM,toUnifProb(PC)))) .
   eq var-sat-conj(FM,FSS,PC)       = not-empty?(ctor-unifiers(FM,toUnifProb(PC))) .
   eq var-sat-conj(FM,FSS,NC)       = consistent?(FM,FSS,nf-ctor-variants(FM,NC)) .
   --- NB: Possible optimization of var-sat-conj()?

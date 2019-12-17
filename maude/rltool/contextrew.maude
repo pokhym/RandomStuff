@@ -73,7 +73,7 @@ fmod META-SEARCH-EXT is
     fi .
 
   op metaNormalForm? : Module Term Term -> Bool .
-  eq metaNormalForm?(U,T1,T2) = metaSearch(U,T1,T2,nil,'!,unbounded,0) :: ResultTriple .
+  eq metaNormalForm?(U,T1,T2) = metaSearch(U,T1,T2,nil,'*,unbounded,0) :: ResultTriple .
 
   op $metaNeg : Term ~> Term .
   eq $metaNeg('true.Bool ) = 'false.Bool .
@@ -93,14 +93,15 @@ fmod CONTEXT-REW is
   pr CNF                   . --- toCNF()
   pr CONG-CLOSURE-LIB      . --- congClosure()
   pr META-SEARCH-EXT       .
+  pr FOFORM-PRINTER        .
 
   var U UCC : Module . var ES : EquationSet . var E : Equation .
   var S : Substitution . var Sz : Nat .
   var ND  : NegDisj? . var PD PD' : PosDisj? . var D? : Disj? .
   var NND : NegDisj . var NPD : PosDisj . var D : Disj .
   var F   : QFForm . var F? : QFForm? . var FK : [QFForm?] .
-  var CC  : CCState .
-  var DBG : Bool .
+  var CC  : CCState . var PC? : PosConj? .
+  var DBG : Bool . var STR : String .
 
   --- INP: Module NegDisj PosDisj
   --- PRE: [1] Disj are well-formed with respect to Module
@@ -111,12 +112,15 @@ fmod CONTEXT-REW is
   --- OUT: PosDisj? rewritten with equations from congruence closure of equations in NegDisj modulo B
   ---  NB: returns mtForm in case the antecedent is unsatisfiable
   op context-rew : Module NegDisj? PosDisj ~> PosDisj .
-  eq context-rew(U,ND,PD) = context-rew1(congClosure(removeIds(U,all),false,simplify(flip(ND))),PD) .
+  eq context-rew(U,ND,PD) =
+    cr-debug-print(true,U,
+      simplify(flip(ND)),
+      context-rew1(congClosure(removeIds(U,all),false,simplify(flip(ND))),PD)
+    ) .
 
   op context-rew1 : CCResult PosDisj ~> PosDisj .
   eq context-rew1(errCCResult(QL:QidList),PD) = error($join(QL:QidList," ")) .
   eq context-rew1((UCC,S,ES),PD) =
-    context-rew-debug-print(false,
       constsToVars(S,
         if trueOrSmaller(reduce(setEqs(UCC,ES),PD << S),PD) == true
           then reduce(setEqs(UCC,ES),PD << S)
@@ -129,7 +133,7 @@ fmod CONTEXT-REW is
 	      else reduce(addEqs(interreduce(UCC,ES - getTaggedIdEqs(ES),getTaggedIdEqs(ES)),UCC),PD << S)
             fi
           fi
-        fi)) .
+        fi) .
 
   op trueOrSmaller : PosDisj? PosDisj? -> Bool .
   eq trueOrSmaller(PD \/ tt,PD') = true .
@@ -144,9 +148,13 @@ fmod CONTEXT-REW is
   eq context-rew-simp(U,F?)         = F? [owise] .
 
   --- OUT: debugging printer
-  op context-rew-debug-print : Bool PosDisj ~> PosDisj .
-  eq context-rew-debug-print(true, PD) = PD [print "RESULT: " PD] .
-  eq context-rew-debug-print(false,PD) = PD .
+  op cr-debug-print : Bool Module PosConj? PosDisj ~> PosDisj .
+  eq cr-debug-print(true, U,PC?,PD) = cr-debug-print2(printToString(print(U,falseId(PC?)) '=> print(U,PD)),PD) .
+  eq cr-debug-print(false,U,PC?,PD) = PD .
+  eq cr-debug-print(DBG,  U,PC?,FK) = FK [print "CR Generated Error Term: " FK] .
+
+  op cr-debug-print2 : String PosDisj -> PosDisj .
+  eq cr-debug-print2(STR,PD) = PD [print "CR Generated Implication: " STR] .
 
   --- OUT: true iff true and false contradict
   ---  NB: if DBG == true we use debugging mode where we call metaRewrite
@@ -221,21 +229,24 @@ fmod CONTEXT-REW-SOLVER is
     fi fi .
   eq crv-run(ML,TA) = TA .
   eq crv-run(RewMod ; VSMod ; SimpMod ; CRMod,D) =
-    cr-success?(D,
+    cr-success?(RewMod,D,
       simplify(context-rew-simp(CRMod,downTerm(modReduce(SimpMod,
         upTerm(reduce(RewMod,false,
                  extract-clause-sub(RewMod,
                    vu-clause-simp(VSMod,D))))),error("cr modreduce failed"))))) [owise] .
 
-  op cr-success? : Disj QFForm? -> Disj .
-  eq cr-success?(D,tt) = tt                                                       . ---[print "CR-SUCCESS-TO-TRUE: " D] .
-  eq cr-success?(D,ff) = ff                                                       [print "CR-FAIL-TO-FALSE: "   D] .
- ceq cr-success?(D,D) = D                            if not D :: TruthAtom        . ---[print "NO-CHANGE: "          D] .
- ceq cr-success?(ND \/ NPD,ND' \/ PD') =  tt         if     size(PD') < size(NPD) . ---[print "CR-SUCCESS-SMALLER: " NPD " or " ND " to " PD' " or " ND'] .
- ceq cr-success?(ND \/ NPD,ND' \/ PD') =  ND' \/ PD' if PD' =/= NPD and-then not size(PD') < size(NPD) [print "CR-FAIL: "    NPD " to " PD' " with " ND'] .
-  eq cr-success?(ND \/ NPD,ND' \/ NPD) =  ND' \/ NPD [print "CR-FAIL-RHS-UNREDUCED: " NPD] .
-  eq cr-success?(D,F) = F                                                         [owise print "CR-FAIL-COMPLEX: " D " with " F] .
- ceq cr-success?(D,FK) = error("cr unknown fail") if not FK :: QFForm             [owise print "CR-ERROR: " FK " from " D] .
+  op cr-success? : Module Disj QFForm? -> Disj .
+  --- Success
+  eq cr-success?(RewMod,D,tt)                 = tt .
+ ceq cr-success?(RewMod,ND \/ NPD,ND' \/ PD') = tt if size(PD') < size(NPD) .
+   --- Simple Failure
+  eq cr-success?(RewMod,D,ff) = ff                                                                            [print "CR Simplification Round Reduced Implication to ff"] .
+ ceq cr-success?(RewMod,D,D ) = D                           if not D :: TruthAtom                             [print "CR Simplification Round Did NOT Reduce Implication"] .
+  eq cr-success?(RewMod,ND \/ NPD,ND' \/ NPD) =  ND' \/ NPD                                                   [print "CR Simplification Round Did NOT Reduce Implication RHS"] .
+ ceq cr-success?(RewMod,ND \/ NPD,ND' \/ PD') =  ND' \/ PD' if PD' =/= NPD and-then not size(PD') < size(NPD) [print "CR Simplification Round Could NOT Prove Implication"] .
+   --- Unusual Failures
+  eq cr-success?(RewMod,D,F ) = F                                                                             [owise print "CR Simplification Round Produced Unexpected Formula"] .
+ ceq cr-success?(RewMod,D,FK) = error("cr unknown fail") if not FK :: QFForm                                  [owise print "CR Simplification Round Produced Error Term"] .
 endfm
 
 fmod CONTEXT-REW-BACKEND-IMPL is
@@ -254,44 +265,11 @@ fmod CONTEXT-REW-BACKEND-IMPL is
   eq checkVal((M,'conrew,ModArgs),MQL,D,F) =
     if ModArgs :: Module then
       --- FIXME: set output back to false when we are done
-      if @ppCNF(true,'tt.Pred,
-        crv(get-mod(D) ;
+      if crv(get-mod(D) ;
 	    getbackend('varunif,'varunif,get-reg(D)) ;
 	    ModArgs ;
-	    toFModule(getbackend('validity,'conrew,get-reg(D))),F)) == tt then true else nobool fi
+	    toFModule(getbackend('validity,'conrew,get-reg(D))),F) == tt then true else nobool fi
       else errb('conrew 'requires 'single 'module 'argument)
     fi .
   eq checkUnsat((M,'conrew,ModArgs),MQL,D,F) = cr-unsat(M,F) .
 endfm
-
----(
---- TODO: rethink this or remove it
---- Module provides method to check if a clause in a set of clauses is NOT valid:
---- This is applied as a last resort if we do not know how to proceed
---- Strategy is as follows: if in a clause, terms in all positive atoms are:
----   [a] constructor terms
----   [b] non-narrowable with convergent equations generated from negative atoms --- still TODO
----   [c] non-unifiable with each other
---- we conclude invalid.
---- Conditions [a] and [b] ensure terms are in normal form; condition [c] ensures they have no common instances
-fmod CLAUSE-INVALIDITY-CHECKER is
-  pr GENERIC-FORMULA-REDUCTION .  --- provides QFFormSetBoolPair data structure
-  pr FOFORMSET                  . --- DisjSet
-  pr CTOR-SIG                   . --- ctor-sig
-  pr FOFORM-OPERATIONS          . --- wellFormed()
-  op clause-invalid?  : Module QFFormSetBoolPair -> QFFormSetBoolPair .
-  op clause-invalid?  : Module DisjSet DisjSet   -> QFFormSetBoolPair .
-  op clause-invalid?  : Module Disj              -> Bool .
-  op clause-invalid'? : Module PosDisj?          -> Bool .
-  var U : Module . var N : NegDisj . var P : PosDisj . var P? : PosDisj? . var T T' : Term . var D D' : DisjSet . var B : Bool .
-
-  eq clause-invalid? (U,N \/ P)       = if wellFormed(ctor-sig(U),P) then clause-invalid'?(U,P) else nobool fi .
-  eq clause-invalid'?(U,T ?= T' \/ P) = metaUnify(U,T =? T,0,0) == noUnifier and-then clause-invalid'?(U,P) .
-  eq clause-invalid'?(U,mtForm)       = true .
-
-  eq clause-invalid?(U,(D,nobool))    = clause-invalid?(U,D,mtFormSet) .
-  eq clause-invalid?(U,(D,B))         = (D,B) .
-  eq clause-invalid?(U,N \/ P | D,D') = if clause-invalid?(U,N \/ P) then (N \/ P | D | D',false) else clause-invalid?(U,D,D' | N \/ P) fi .
-  eq clause-invalid?(U,mtFormSet,D')  = (D',nobool) .
-endfm
----)

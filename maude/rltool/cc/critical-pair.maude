@@ -155,13 +155,13 @@ fmod CRITICAL-PAIR is
   eq CPS-A(MR,MR',f) = nil [owise] .  --- covers the case (impossible in actual use) where either MR or MR' is mt-mrule
 
   eq CPS-A-aux(T [n,S] => T' [m,S'],T'' [k,S''] => T''' [l,S'''],f,i) =
-         if metaUnify(upModule('U,true),f['X1:U,'X2:U] =? T /\ f['X2:U,'X3:U] =? T'' ,0,i) == noUnifier
-            then nil
-            else [
+         if metaUnify(upModule('U,true),f['X1:U,'X2:U] =? T /\ f['X2:U,'X3:U] =? T'' ,0,i) :: UnificationPair
+            then [
                   f[T',('X3:U << p1(metaUnify(upModule('U,true),f['X1:U,'X2:U] =? T /\ f['X2:U,'X3:U] =? T'' ,0,i)))     ],
                   f[   ('X1:U << p1(metaUnify(upModule('U,true),f['X1:U,'X2:U] =? T /\ f['X2:U,'X3:U] =? T'' ,0,i))),T''']
                  ]
                  CPS-A-aux(T [n,S] => T' [m,S'],T'' [k,S''] => T''' [l,S'''],f,s(i))
+            else nil
          fi .
 
   eq CPS-AC(U,FAS,T [n,S] => T' [m,S'],T'' [k,S''] => T''' [l,S'''],f) =

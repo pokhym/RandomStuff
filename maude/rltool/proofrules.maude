@@ -1,10 +1,11 @@
 fmod INTERSECT-REACHFORM is
   pr REACH-PROOF-GOAL-SIMPLIFICATION .
   pr TRANSITION-OPERATIONS .
-  pr TRANSITIONSET-RENAME .
+  pr RENAME-TRANSITIONSET .
   pr TRANSITIONSET-SUBSTITUTION .
+  pr TRANSITION-MATCH .
   var U : Module . var UL : ModuleList .
-  var T : Term . var C C' : QFForm? . var D TST : QFCTermSet . var R : ReachForm .
+  var T : Term . var C C' : QFForm? . var D TST : QFCTermSet . var R R' : ReachForm .
   var FSS : FOFormSubstPairSet . var S : Substitution .
 
   op intersectReachform : Module QFCTermSet ReachForm -> ReachFormSet .
@@ -13,7 +14,7 @@ fmod INTERSECT-REACHFORM is
   op intersectReachform : Module FOFormSubstPair ReachForm -> ReachFormSet .
   eq intersectReachform(U,mtFSPS,R) = mt .
   eq intersectReachform(U,(C',S) | FSS,R) =
-    renameVars(0,conj-antc(R << S,C')) & intersectReachform(U,FSS,R) .
+    renameVars(conj-antc(R << S,C')) & intersectReachform(U,FSS,R) .
 
   --- OUT: simplify the result of intersecting a reachability formula with a pattern predicate
   ---  NB: we need multiple module arguments for the simplify function
@@ -26,11 +27,12 @@ fmod REACH-PROOF-GOAL-SUBSUMPTION is
   pr RLTOOL-BACKEND-IMPL                   . --- checkVal/checkUnsat
   pr CONSTRAINED-TERMSET-MATCH             . --- subsumeByMatch
   pr INTERSECT-REACHFORM                   . --- intersectReachform
+  pr TRANSITION-MATCH                      . --- matches for ReachForm
 
   var D : ProofMetadata . var MA : QFCTerm . var MF MF' TST : QFCTermSet .
   var B : Bool . var MB : MaybeBool .
   var F F' : QFForm? . var FSS : FOFormSubstPairSet . var S : Substitution .
-  var U : Module . var R : ReachForm . var RS : ReachFormSet .
+  var U : Module . var R R' : ReachForm . var RS : ReachFormSet .
   var VS : VariableSet .
   var RSS : ReachFormSubstPairSet .
 
@@ -59,6 +61,22 @@ fmod REACH-PROOF-GOAL-SUBSUMPTION is
   op disjointOrSubsume : ProofMetadata VariableSet QFCTermSet ReachForm -> MaybeBool .
   eq disjointOrSubsume(D,VS,TST,MA => MF) =
     subsume?(D,VS,simplifyIntersectReachform(get-mod(D) ; if enableVarUnifSimp then getModByImpl(D,'varsat) else noModule fi,TST,MA => MF)) .
+
+  op synSubsumeReachform : ProofMetadata ReachForm ReachForm -> Bool .
+  --------------------------------------------------------------------
+  eq synSubsumeReachform(D,R,R') = matches(get-mod(D),R,R') :: NeSubstitutionSet .
+
+  op semSubsumeReachform : ProofMetadata ReachForm ReachForm -> MaybeBool .
+  -------------------------------------------------------------------------
+  eq semSubsumeReachform(D,R,R') =
+    if matchAntc(get-mod(D),R,R') :: NeSubstitutionSet
+      then sem-subsume?(D,none,antc(R'),antc(R) << matchAntc(get-mod(D),R,R'))
+      else false
+    fi .
+
+  op subsumeReachform : ProofMetadata ReachForm ReachForm -> MaybeBool .
+  ----------------------------------------------------------------------
+  eq subsumeReachform(D,R,R') = synSubsumeReachform(D,R,R') or-else semSubsumeReachform(D,R,R') .
 endfm
 
 --- This module defines a function to apply a list of axioms (labelled reach formulas)
@@ -135,8 +153,7 @@ fmod REACH-PROOF-RULES-AUX is
   pr REACH-PROOF-GOAL-SUBSUMPTION .
   pr TRANSITION-APPLICATION .
   pr TRANSITION-TUPLES .
-  pr FOFORMSET-RENAME .
-  pr TRANSITIONSET-RENAME .
+  pr RENAME-TRANSITIONSET .
   pr RLTOOL-SWITCHES .
   pr SUBSTITUTIONSET-AUX .
 
@@ -170,13 +187,13 @@ fmod REACH-PROOF-RULES-AUX is
 
   op simp-action : ProofMetadata Module Bool ProofGoal -> ProofUpdate .
   eq simp-action(D,U,B,G) = (none ||
-    newChildGoals(G,goal-simplify(U ; if enableVarUnifSimp and B then getModByImpl(D, 'varunif) else noModule fi,liftRFSS(simpDebugPrint(getbody(G)))))) .
+    newChildGoals(G,goal-simplify(U ; if enableVarUnifSimp and B then getModByImpl(D, 'fvp) else noModule fi,liftRFSS(simpDebugPrint(get-mod(D),getbody(G)))))) .
 
-  op simpDebugPrint : ReachForm -> ReachForm .
-  eq simpDebugPrint(F) = simpDebugPrint2(lhs-cond(F),F) .
+  op simpDebugPrint : Module ReachForm -> ReachForm .
+  eq simpDebugPrint(U,F) = simpDebugPrint2(printToString(print(U,lhs-cond(F))),F) .
 
-  op simpDebugPrint2 : QFForm? ReachForm -> ReachForm .
-  eq simpDebugPrint2(QF?,F) = F [print "Constraint: " QF?] .
+  op simpDebugPrint2 : String ReachForm -> ReachForm .
+  eq simpDebugPrint2(STR,F) = F [print "Constraint: " STR] .
 
   op termcheck-action : ProofMetadata Module QFCTermSet ProofGoal -> ProofUpdate .
   op termcheck-action : ProofMetadata Module Bool ProofGoal -> ProofUpdate .
@@ -288,7 +305,12 @@ fmod REACH-PROOF-RULES-AUX is
   --- TODO: add flag (or separate function) for one-off runs, to support use-cases like the split rule
   ---       so that we do not invalidate a goal after failing to apply the rule
   op apply-proof-strat : ProofMetadata ProofGoal -> ProofMetadata? .
-  eq apply-proof-strat(D,G) = lift-result(G,getstrat(G),D,apply-proof-action(D,nextaction(getstrat(G)),G)) .
+  eq apply-proof-strat(D,G) =
+    if get-on(D) == true then
+      lift-result(G,getstrat(G),D,apply-proof-action(D,nextaction(getstrat(G)),G))
+    else
+      st(err) ; out('Warning: 'Proof 'not 'started! '\n)
+    fi .
 
   op printStep : Bool String [ProofUpdate] -> ProofUpdate .
   eq printStep(true, STR,(D')) = (D') [print STR " step checked failure"] .
@@ -336,11 +358,14 @@ mod REACH-PROOF-RULES is
   var PPS : ProofStatus .
   var F : ReachForm .
   var GS : ProofGoalSet .
+  var QL : QidList .
 
   rl [select-goal] :
-     {D ; st(PPS) ; prf(GS)}
-  => if getActiveGoal(GS) :: ProofGoal
-       then [merge(D ; prf(delgl(GS,getActiveGoal(GS))) ; st(PPS), apply-proof-strat(D,getActiveGoal(GS)))]
-       else [D ; st(done) ; prf(GS)]
+     {D ; out(QL) ; st(PPS) ; prf(GS)}
+  => if get-on(D) == true
+       then if getActiveGoal(GS) :: ProofGoal
+         then [merge(D ; prf(delgl(GS,getActiveGoal(GS))) ; out(QL) ; st(PPS), apply-proof-strat(D,getActiveGoal(GS)))]
+         else [D ; out(QL) ; st(done) ; prf(GS)]
+       fi else [D ; out(QL 'Warning: 'Proof 'not 'started) ; st(err) ; prf(GS)]
      fi .
 endm

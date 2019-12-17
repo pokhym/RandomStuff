@@ -96,8 +96,8 @@ fmod VERIFY-PARTIALFVP is
   eq posNegNoCPs(U,E,       E1 E2 NEQ) = posNegNoCPs(U,E,E1) ; posNegNoCPs(U,E,E2 NEQ) .
 
   eq posNegNoCPs(U,E1,E2) =
-    if unifiers(U,lhs(E1) =? lhs(E2)) == empty then .PFVPObligationSet else
-    posNegNoCPs(U,E1,E2,unifiers(U,lhs(E1) =? lhs(E2)),
+    if safeUnifiers(U,lhs(E1) =? lhs(E2)) == empty then .PFVPObligationSet else
+    posNegNoCPs(U,E1,E2,safeUnifiers(U,lhs(E1) =? lhs(E2)),
       simplify(trueId(eqCond2PosConj(cond(E1),mtForm)) /\ trueId(eqCond2PosConj(cond(E2),mtForm)))) fi .
 
   op posNegNoCPs : Module Equation Equation SubstitutionSet PosEqConj? -> PFVPObligationSet .
@@ -110,7 +110,7 @@ fmod VERIFY-PARTIALFVP is
 
   op positivityInvariant1 : ModQidListPair Term EquationSet EquationSet -> PFVPObligationSet .
   eq positivityInvariant1((U,SortP OpP),PT,PEQ,E SEQ) =
-    positivityInvariant2((U,SortP OpP),lhs(E),dbgPrintPFVPUnifs(false,E,lhs(PEQ),allUnifiers(setEqs(U,eqsByMetadata("id",getEqs(U))),true,rhs(E),lhs(PEQ))),cond(E)) ;
+    positivityInvariant2((U,SortP OpP),lhs(E),dbgPrintPFVPUnifs(false,E,lhs(PEQ),allUnifiers(setEqs(U,eqsByMetadata("id",getEqs(U))),rhs(E),lhs(PEQ))),cond(E)) ;
     positivityInvariant1((U,SortP OpP),PT,PEQ,SEQ) .
   eq positivityInvariant1((U,SortP OpP),PT,PEQ,none) = .PFVPObligationSet .
 

@@ -267,27 +267,6 @@ fmod TRANSITIONSET-PRINTER is pr TRANSITIONSET . pr TRANSITION-PRINTER .
   eq printMeta(mt)             = 'mt .
 endfm
 
-fmod TRANSITIONSET-RENAME is
-  pr TRANSITIONSET .
-  pr TRANSITION-SUBSTITUTION .
-  pr TRANSITION-OPERATIONS .
-  pr RENAME-METAVARS .
-  pr RENAME-TERM-AUX .
-  pr FINDRESULT-AUX .
-
-  op renameAllVar : Module FindResult ReachFormSet -> ReachFormSet .
-  op renameTmpVar : Module FindResult ReachFormSet -> ReachFormSet .
-  op unwrapReachFormSet : TermData                 -> ReachFormSet .
-  var U : Module . var F : ReachForm . var FS : ReachFormSet . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,FS) = unwrapReachFormSet(#renameAllVar(U,N,upTerm(FS))) .
-  eq renameTmpVar(U,N,FS) = unwrapReachFormSet(#renameTmpVar(U,N,upTerm(FS))) .
-  eq unwrapReachFormSet(termdata(T,N)) = downTerm(T,mt) .
-
-  op renameVars : FindResult ReachFormSet -> ReachFormSet .
-  eq renameVars(N,F & FS) = F << freshifyVars(toNat(N,0),vars(F)) & renameVars(N,FS) .
-  eq renameVars(N,mt)     = mt .
-endfm
-
 --- LABELED TRANSITIONS
 
 fmod LABEL-TRANSITION is
@@ -444,10 +423,106 @@ fmod LABEL-TRANSITION-SUBSTPAIRSET is
 endfm
 
 fmod LABEL-TRANSITION-SUBSTITUTION is
-  pr LABEL-TRANSITION . pr TRANSITION-SUBSTITUTION .
+  pr LABEL-TRANSITION-SET . pr TRANSITION-SUBSTITUTION .
   op _<<_ : LabelReachFormEx Substitution -> LabelReachFormEx .
+  op _<<_ : LabelReachFormExSet Substitution -> LabelReachFormExSet .
   var L : MaybeQid . var T : ReachFormEx . var S : Substitution .
+  var LR LR' : LabelReachFormEx . var LRS : LabelReachFormExSet .
+
   eq (L : T) << S = (L : (T << S)) .
+  eq (LR | LR' | LRS) << S = (LR << S) | ((LR' | LRS) << S) .
+  eq (empty).LabelReachFormExSet << S = empty .
+endfm
+
+fmod RENAME-TRANSITIONSET is
+  pr TRANSITIONSET .
+  pr TRANSITION-OPERATIONS .
+  pr TRANSITION-SUBSTITUTION .
+  pr LABEL-TRANSITION-LIST .
+  pr LABEL-TRANSITION-SUBSTITUTION .
+  pr RENAME-QFCTERM .
+
+  var MQ : MaybeQid .
+  var D : NameData .
+  var CS CS' : QFCTermSet .
+  var F : ReachFormEx .
+  var FS FS' : ReachFormExSet .
+  var L : LabelReachFormEx .
+  var LS LS' : LabelReachFormExSet .
+  var LL LL' : LabelReachFormExList .
+
+  sort RenamedReachForm RenamedReachFormSet .
+  sort RenamedLabelReachForm RenamedLabelReachFormSet RenamedLabelReachFormList .
+  subsort RenamedReachForm < RenamedReachFormSet .
+  subsort RenamedLabelReachForm < RenamedLabelReachFormSet RenamedLabelReachFormList .
+  ----------------------------------------------------------
+  op [_,_] : NameData ReachFormEx    -> RenamedReachForm [ctor] .
+  op [_,_] : NameData ReachFormExSet -> RenamedReachFormSet [ctor] .
+  op [_,_] : NameData LabelReachFormEx    -> RenamedLabelReachForm [ctor] .
+  op [_,_] : NameData LabelReachFormExSet -> RenamedLabelReachFormSet [ctor] .
+  op [_,_] : NameData LabelReachFormExList -> RenamedLabelReachFormList [ctor] .
+  ------------------------------------------------------------------------------
+  op rvGetObj : RenamedReachFormSet -> ReachFormExSet .
+  op rvGetObj : RenamedLabelReachForm -> LabelReachFormEx .
+  op rvGetObj : RenamedLabelReachFormSet -> LabelReachFormExSet .
+  op rvGetObj : RenamedLabelReachFormList -> LabelReachFormExList .
+  -----------------------------------------------------------------
+  eq rvGetObj([D,FS]) = FS .
+  eq rvGetObj([D,LS]) = LS .
+  eq rvGetObj([D,LL]) = LL .
+
+  op renameVars : ReachFormEx -> ReachFormEx .
+  op renameVars : NameData ReachFormEx -> ReachFormEx .
+  op #renameVars : NameData ReachFormEx -> RenamedReachForm .
+  -----------------------------------------------------------
+  eq renameVars(F) = renameVars(nullNameData,F) .
+  eq renameVars(D,F) = rvGetObj(#renameVars(D,F)) .
+  eq #renameVars(D,CS => CS') = rvRenameReachForm(renameVarsCS(D,CS),CS') .
+
+  op renameVars : LabelReachFormEx -> LabelReachFormEx .
+  op renameVars : NameData LabelReachFormEx -> LabelReachFormEx .
+  op #renameVars : NameData LabelReachFormEx -> RenamedLabelReachForm .
+  ---------------------------------------------------------------------
+  eq renameVars(L) = renameVars(nullNameData,L) .
+  eq renameVars(D,L) = rvGetObj(#renameVars(D,L)) .
+  eq #renameVars(D,(MQ : F)) = rvRenameLabelReachForm(MQ,#renameVars(D,F)) .
+
+  op rvRenameReachForm : RenamedQFCTermSet QFCTermSet -> RenamedReachForm .
+  op rvRenameReachForm : QFCTermSet RenamedQFCTermSet -> RenamedReachForm .
+  -------------------------------------------------------------------------
+  eq rvRenameReachForm([D,CS],CS') = rvRenameReachForm(CS,renameVarsCS(D,CS')) .
+  eq rvRenameReachForm(CS,[D,CS']) = [D,CS => CS'] .
+
+  op rvRenameLabelReachForm : MaybeQid RenamedReachForm -> RenamedLabelReachForm .
+  --------------------------------------------------------------------------------
+  eq rvRenameLabelReachForm(MQ,[D,F]) = [D,(MQ : F)] .
+
+  op renameVarsFS : NameData ReachFormSet -> RenamedReachFormSet .
+  op renameVarsFS : NameData ReachFormSet ReachFormSet -> RenamedReachFormSet .
+  op renameVarsFS : RenamedReachForm ReachFormSet ReachFormSet -> RenamedReachFormSet .
+  -------------------------------------------------------------------------------------
+  eq renameVarsFS(D,FS) = renameVarsFS(D,FS,mt) .
+  eq renameVarsFS(D,F & FS,FS') = renameVarsFS(#renameVars(D,F),FS,FS') .
+  eq renameVarsFS(D,mt,    FS') = [D,FS'] .
+  eq renameVarsFS([D,F],FS,FS') = renameVarsFS(D,FS,FS' & F) .
+
+  op renameVarsLS : NameData LabelReachFormSet -> RenamedLabelReachFormSet .
+  op renameVarsLS : NameData LabelReachFormSet LabelReachFormSet -> RenamedLabelReachFormSet .
+  op renameVarsLS : RenamedLabelReachForm LabelReachFormSet LabelReachFormSet -> RenamedLabelReachFormSet .
+  ---------------------------------------------------------------------------------------------------------
+  eq renameVarsLS(D,LS) = renameVarsLS(D,LS,empty) .
+  eq renameVarsLS(D,L | LS,LS') = renameVarsLS(#renameVars(D,L),LS,LS') .
+  eq renameVarsLS(D,empty, LS') = [D,LS'] .
+  eq renameVarsLS([D,L],LS,LS') = renameVarsLS(D,LS,LS' | L) .
+
+  op renameVarsLL : NameData LabelReachFormList -> RenamedLabelReachFormList .
+  op renameVarsLL : NameData LabelReachFormList LabelReachFormList -> RenamedLabelReachFormList .
+  op renameVarsLL : RenamedLabelReachForm LabelReachFormList LabelReachFormList -> RenamedLabelReachFormList .
+  ------------------------------------------------------------------------------------------------------------
+  eq renameVarsLL(D,LL) = renameVarsLL(D,LL,nil) .
+  eq renameVarsLL(D,L ; LL,LL') = renameVarsLL(#renameVars(D,L),LL,LL') .
+  eq renameVarsLL(D,nil,   LL') = [D,LL'] .
+  eq renameVarsLL([D,L],LL,LL') = renameVarsLL(D,LL,LL' ; L) .
 endfm
 
 --- FOFORM-TRANSITIONSET-PAIR-LIST
@@ -477,7 +552,7 @@ endfm
 ---       or at least let this bit have a good default value but be user-settable
 fmod ABSTRACT-RULES is
   pr FOFORM-SUBSTITUTION .
-  pr UNIFIERS .
+  pr META-FUNCTION-WRAPPER .
   pr DEFINED-SUBTERMS .
   pr LABEL-TRANSITION-SUBSTITUTION .
   pr LABEL-TRANSITION-SET .
@@ -648,7 +723,7 @@ fmod VAR-UNIF-SIMPLIFY is
   eq varunif-simp2(M,(F,S),(C?,C'?)) = (F,S) [owise] .
 
   op varunif-simp3 : Module ReachFormSubstPair SubstitutionSet -> ReachFormSubstPairSet .
-  eq varunif-simp3(M,(F,S),SS) = (F,S) << renameVars(nameData(maxVar(vars(F))),SS) .
+  eq varunif-simp3(M,(F,S),SS) = (F,S) << renameVars(nameData(maxVar(false,vars(F))),SS) .
 endfm
 
 --- TODO:
@@ -691,11 +766,12 @@ fmod LCCRULE-NARROWING is
   pr LABEL-TRANSITION-SET .
   pr LABEL-TRANSITION-SUBSTPAIRSET .
   pr SUBSTITUTIONSET .
-  pr UNIFIERS .
+  pr META-FUNCTION-WRAPPER .
   pr TRANSITIONSET-PROJECTIONS .
   pr TRANSITION-SUBSTITUTION .
   pr STEPRESULTSET .
   pr TRANSITION-PRINTER .
+  pr REMOVE-IDS .
 
   var AR : LabelLCCRule . var ARS : LabelLCCRuleSet . var CT : QFCTerm . var U : Module . var F : ReachForm .
   var T : Term . var S : Substitution . var SS : SubstitutionSet . var ARPS : LabelLCCRuleSubstPairSet .
@@ -720,13 +796,13 @@ fmod LCCRULE-NARROWING is
   eq top-narrow(U,ARS,T) = top-narrow(U,ARS,T,empty) .
 
   op top-narrow : Module LabelLCCRuleSet Term LabelLCCRuleSubstPairSet ~> LabelLCCRuleSubstPairSet .
-  eq top-narrow(U,AR | ARS,T,ARPS) = top-narrow(U,ARS,T,ARPS | $top-narrow1(U,AR,safeUnify(U,lhs(trans(AR)),T),empty)) .
+  eq top-narrow(U,AR | ARS,T,ARPS) = top-narrow(U,ARS,T,ARPS | $top-narrow1(U,AR,sharedVarUnifiers(U,lhs(trans(AR)),T),empty)) .
   eq top-narrow(U,empty,   T,ARPS) = ARPS .
 
   op $top-narrow1 : Module LabelLCCRule SubstitutionSet LabelLCCRuleSubstPairSet ~> LabelLCCRuleSubstPairSet .
   eq $top-narrow1(U,AR,S | SS,ARPS) = $top-narrow1(U,AR,SS,ARPS | (AR,S)) .
   eq $top-narrow1(U,AR,empty, ARPS) = ARPS .
-  eq $top-narrow1(U,AR,SK,    ARPS) = errLabelRuleSubstPair(errsubMsg(SK)) .
+  eq $top-narrow1(U,AR,SK,    ARPS) = errLabelRuleSubstPair(errsubMsg(SK)) [owise label handle-error] .
 
   --- OUT: A wrapper, lifting the above functions to StepResultSets
   op #top-narrow : Module LabelLCCRuleSet ReachForm ~> StepResultSet .
@@ -735,7 +811,7 @@ fmod LCCRULE-NARROWING is
   op #top-narrow : LabelLCCRuleSubstPairSet ReachForm StepResultSet ~> StepResultSet .
   eq #top-narrow((AR,S) | ARPS,F,SRS) = #top-narrow(ARPS,F,SRS (name(AR),S,set-conj-antc(F,succ(trans(AR))) << S)) .
   eq #top-narrow(empty,        F,SRS) = SRS .
-  eq #top-narrow(ARPSK,        F,SRS) = errStepResultSet(errLabelRuleSubstPairMsg(ARPSK)) .
+  eq #top-narrow(ARPSK,        F,SRS) = errStepResultSet(errLabelRuleSubstPairMsg(ARPSK)) [owise label handle-error] .
 
   --- OUT: A wrapper, lifting the above functions to ReachFormSets
   op top-narrow : Module LabelLCCRuleSet ReachForm ~> ReachFormSet .
@@ -749,7 +825,7 @@ fmod TRANSITION-INVARIANT is
   op mk-inv    : Module QidSet QFCTermSet -> ReachFormEx .
   op wrap-term : Module ReachFormEx Qid   -> ReachFormEx .
   var M : Module . var QS : QidSet . var Q : Qid . var F : ReachFormEx . var CTS : QFCTermSet .
-  eq mk-inv(M,QS,CTS) = reach-form(mk-pair(M,QS,CTS)) .
+  eq mk-inv(M,QS,CTS) = reach-form(mk-pair(QS,CTS)) .
   eq wrap-term(M,F,Q) = reach-form(wrap-term(M,ctermsetpair(F),Q)) .
 endfm
 
@@ -870,6 +946,8 @@ endfm
 
 fmod TRANSITION-MATCH is
   pr TRANSITION-FUNCTOR .
+  pr TRANSITION-PROJECTIONS .
+  pr CONSTRAINED-TERM-OPERATIONS .
   pr CONSTRAINED-TERMSET-MATCH .
 
   var U : Module . var R R' : ReachForm .
@@ -878,4 +956,8 @@ fmod TRANSITION-MATCH is
   eq matches(U,R,R') = remove(matches(rf-func(U),rf-func-ext(U,R),rf-func(U,R')),
                          form-variable(qid(sortPrefix(U))) <- tt-literal(qid(opPrefix(U))) ;
                          join('C: qid(sortPrefix(U)) 'CTermSet) <- join('noterm. qid(sortPrefix(U)) 'CTermSet)) .
+
+  op matchAntc : Module ReachForm ReachForm -> SubstitutionSet .
+  --------------------------------------------------------------
+  eq matchAntc(U,R,R') = matches(U,set-antc(R,setCond(antc(R),mtForm)),set-antc(R',setCond(antc(R'),mtForm))) .
 endfm

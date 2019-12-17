@@ -290,26 +290,6 @@ fmod CONSTRAINED-TERMSET-SUBSTITUTIONSET is
   eq CTS <<Form (S | S' | SS) = (CTS <<Form S) | (CTS <<Form (S' | SS)) .
 endfm
 
-fmod CONSTRAINED-TERM-RENAME is pr CONSTRAINED-TERM . pr RENAME-METAVARS .
-  op renameAllVar : Module FindResult CTerm -> CTerm .
-  op renameTmpVar : Module FindResult CTerm -> CTerm .
-  op unwrapCTerm  : TermData                -> CTerm .
-  var U : Module . var CT : CTerm . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,CT) = unwrapCTerm(#renameAllVar(U,N,upTerm(CT))) .
-  eq renameTmpVar(U,N,CT) = unwrapCTerm(#renameTmpVar(U,N,upTerm(CT))) .
-  eq unwrapCTerm(termdata(T,N)) = downTerm(T,noterm) .
-endfm
-
-fmod CONSTRAINED-TERMSET-RENAME is pr CONSTRAINED-TERMSET . pr CONSTRAINED-TERM-RENAME .
-  op renameAllVar   : Module FindResult CTermSet -> CTermSet .
-  op renameTmpVar   : Module FindResult CTermSet -> CTermSet .
-  op unwrapCTermSet : TermData                   -> CTermSet .
-  var U : Module . var CTS : CTermSet . var N : FindResult . var T : Term .
-  eq renameAllVar(U,N,CTS) = unwrapCTermSet(#renameAllVar(U,N,upTerm(CTS))) .
-  eq renameTmpVar(U,N,CTS) = unwrapCTermSet(#renameTmpVar(U,N,upTerm(CTS))) .
-  eq unwrapCTermSet(termdata(T,N)) = downTerm(T,noterm) .
-endfm
-
 --- This module defines a meta-level constrained term functor. As with all meta-level functor,
 --- the functor exists in two parts:
 --- [1] the lifting of the input module signature into the functorized signatures
@@ -416,7 +396,7 @@ fmod CONSTRAINED-TERMSET-MATCH is
   pr CONSTRAINED-TERM-FUNCTOR .   --- cterm-func()/eqform-func()
   pr CONSTRAINED-TERMSET .        --- sets of contrained terms
   pr FOFORMSUBSTITUTION-PAIRSET . --- collect the intermediate results
-  pr UNIFIERS .                   --- matches() function
+  pr META-FUNCTION-WRAPPER .      --- matches() function
   pr SUBSTITUTION-AUX .           --- remove() function for substitutions
 
   var C C' : QFCTerm . var CS CS' : QFCTermSet .
@@ -440,7 +420,7 @@ fmod CONSTRAINED-TERMSET-MATCH is
   eq matches#(U,O,S,noterm,C) = empty .
   eq matches#(U,O,S,CS,CS')  = empty [owise] .
   eq matches#(U,O,S,C' | CS,C) =
-    remove(safeMatch(cterm-func(U),cterm-func-ext(U,'X,C'),cterm-func(U,C)),form-variable(S) <- tt-literal(O)) |
+    remove(sharedVarMatch(cterm-func(U),cterm-func-ext(U,'X,C'),cterm-func(U,C)),form-variable(S) <- tt-literal(O)) |
     matches#(U,O,S,CS,C) .
 
   --- Return all matches for two formulas
@@ -452,14 +432,14 @@ fmod CONSTRAINED-TERMSET-MATCH is
 
   op matches# : Module Qid Qid QFForm? QFForm? -> SubstitutionSet .
   eq matches#(U,O,S,F,G) =
-    remove(safeMatch(cterm-func(U),'/\[eqform-func(U,F),form-variable(S)],eqform-func(U,G)),form-variable(S) <- tt-literal(O)) .
+    remove(sharedVarMatch(cterm-func(U),'/\[eqform-func(U,F),form-variable(S)],eqform-func(U,G)),form-variable(S) <- tt-literal(O)) .
 
   --- Return given match number for two constrained terms (with optionally safe match)
   op match# : Module Bool QFCTerm QFCTerm Nat -> Substitution? .
   op match# : Module Bool Qid Qid QFCTerm QFCTerm Nat -> Substitution? .
   ----------------------------------------------------------------------
   eq match#(U,Safe?,C,C',N) = match#(U,Safe?,qid(opPrefix(U)),qid(sortPrefix(U)),C,C',N) .
-  eq match#(U,true, O,S,C,C',N) = remove(safeMatch(cterm-func(U),cterm-func-ext(U,'X,C),cterm-func(U,C'),N),form-variable(S) <- tt-literal(O)) .
+  eq match#(U,true, O,S,C,C',N) = remove(sharedVarMatch(cterm-func(U),cterm-func-ext(U,'X,C),cterm-func(U,C'),N),form-variable(S) <- tt-literal(O)) .
   eq match#(U,false,O,S,C,C',N) = remove(metaMatch(cterm-func(U),cterm-func-ext(U,'X,C),cterm-func(U,C'),N),form-variable(S) <- tt-literal(O)) .
 
   --- Return given match number for two formulas (with optionally safe match)
@@ -467,7 +447,7 @@ fmod CONSTRAINED-TERMSET-MATCH is
   op match# : Module Bool Qid Qid QFForm? QFForm? Nat -> Substitution? .
   ----------------------------------------------------------------------
   eq match#(U,Safe?,F,G,N) = match#(U,Safe?,qid(opPrefix(U)),qid(sortPrefix(U)),F,G,N) .
-  eq match#(U,true, O,S,F,G,N) = remove(safeMatch(cterm-func(U),'/\[eqform-func(U,F),form-variable(S)],eqform-func(U,G),N),form-variable(S) <- tt-literal(O)) .
+  eq match#(U,true, O,S,F,G,N) = remove(sharedVarMatch(cterm-func(U),'/\[eqform-func(U,F),form-variable(S)],eqform-func(U,G),N),form-variable(S) <- tt-literal(O)) .
   eq match#(U,false,O,S,F,G,N) = remove(metaMatch(cterm-func(U),'/\[eqform-func(U,F),form-variable(S)],eqform-func(U,G),N),form-variable(S) <- tt-literal(O)) .
 
   op getFormValue : Module Substitution -> FOFormSubstPair .
@@ -514,6 +494,60 @@ fmod CONSTRAINED-TERMSET-MATCH is
   eq maximalFormSet1(U,F,mtFormSet,FS) = F | FS .
 endfm
 
+fmod RENAME-QFCTERM is
+  pr CONSTRAINED-TERM-SUBSTITUTIONSET .
+  pr RENAME-FORM .
+
+  var D : NameData .
+  var C : QFCTerm .
+  var CS CS' : QFCTermSet .
+  var T : Term .
+  var F : QFForm? .
+  var N : Nat .
+
+  sort RenamedQFCTerm RenamedQFCTermSet .
+  subsort RenamedQFCTerm < RenamedQFCTermSet .
+  op [_,_] : NameData QFCTerm -> RenamedQFCTerm [ctor] .
+  op [_,_] : NameData QFCTermSet -> RenamedQFCTermSet [ctor] .
+  op rvGetObj : RenamedQFCTermSet -> QFCTermSet .
+  eq rvGetObj([D,CS]) = CS .
+
+  op renameVars : QFCTerm -> QFCTerm .
+  op renameVars : NameData QFCTerm -> QFCTerm .
+  op #renameVars : NameData QFCTerm -> RenamedQFCTerm .
+  -----------------------------------------------------
+  eq renameVars(C) = renameVars(nullNameData,C) .
+  eq renameVars(D,C) = rvGetObj(#renameVars(D,C)) .
+  eq #renameVars(D,(T | F)) = rvRenameQFCTerm(#renameVars(D,T),F) .
+
+  op rvRenameQFCTerm : RenamedTerm QFForm? -> RenamedQFCTerm .
+  op rvRenameQFCTerm : Term RenamedQFForm -> RenamedQFCTerm .
+  -----------------------------------------------------------
+  eq rvRenameQFCTerm([D,T],F) = rvRenameQFCTerm(T,#renameVars(D,F)) .
+  eq rvRenameQFCTerm(T,[D,F]) = [D,(T | F)] .
+
+  op renameVars : QFCTermSet -> QFCTermSet .
+  op renameVars : Nat QFCTermSet -> QFCTermSet .
+  op renameVars : NameData QFCTermSet -> QFCTermSet .
+  op renameVars : NameData QFCTermSet QFCTermSet -> QFCTermSet .
+  --------------------------------------------------------------
+  eq renameVars(CS)   = renameVars(0,CS) .
+  eq renameVars(N,CS) = renameVars([N,none],CS) .
+  eq renameVars(D,CS) = renameVars(D,CS,noterm) .
+
+  eq renameVars(D,C | CS,CS') = renameVars(D,CS,CS' | renameVars(D,C)) .
+  eq renameVars(D,noterm,CS') = CS' .
+
+  op renameVarsCS : NameData QFCTermSet -> RenamedQFCTermSet .
+  op renameVarsCS : NameData QFCTermSet QFCTermSet -> RenamedQFCTermSet .
+  op renameVarsCS : RenamedQFCTerm QFCTermSet QFCTermSet -> RenamedQFCTermSet .
+  -----------------------------------------------------------------------------
+  eq renameVarsCS(D,CS) = renameVarsCS(D,CS,noterm) .
+  eq renameVarsCS(D,C | CS,CS') = renameVarsCS(#renameVars(D,C),CS,CS') .
+  eq renameVarsCS(D,noterm,CS') = [D,CS'] .
+  eq renameVarsCS([D,C],CS,CS') = renameVarsCS(D,CS,CS' | C) .
+endfm
+
 --- This module defines a semantic pattern formula matcher that
 --- match the head of one pattern to the other and then check the that the
 --- formula where the condition of the first implies the matched condition of the second
@@ -528,12 +562,10 @@ fmod PATTERN-OPS is
   pr FOFORMSIMPLIFY                  . --- basic simplification operations
   pr FOFORMREDUCE                    .
   pr VARIABLES-TO-CONSTANTS          . --- convert variables in a module to constants
-  pr UNIFIERS                        . --- operations to generate all unifiers/matches
-  pr RENAME-METAVARS                 . --- #renameAllVars
-  pr CONSTRAINED-TERM-SUBSTITUTIONSET .
+  pr META-FUNCTION-WRAPPER           . --- operations to generate all unifiers/matches
   pr CONSTRAINED-TERM-DNF .
-  pr RENAME-TERM .
   pr VAR-UNIF-PARTIAL-FVP .
+  pr RENAME-QFCTERM       .
 
   var U : Module . var MS : [ModuleSubstPair] . var S S' : Substitution .
   var VS : VariableSet . var B : Bool .
@@ -590,12 +622,12 @@ fmod PATTERN-OPS is
   op intersect : Module QFCTermSet QFCTermSet -> QFCTermSet .
   eq intersect(U,C | C' | CS,CS')  = intersect(U,C,CS' ) | intersect(U,C' | CS,CS') .
   eq intersect(U,C,C' | C'' | CS) = intersect(U,C,C') | intersect(U,C,C'' | CS) .
-  eq intersect(U,(T | F?),(T' | F'?)) = (T | F? /\ F'?) << safeUnify(U,T,T') .
+  eq intersect(U,(T | F?),(T' | F'?)) = (T | F? /\ F'?) << sharedVarUnifiers(U,T,T') .
 
   op disjIntersect : Module QFCTermSet QFCTermSet -> QFCTermSet .
   eq disjIntersect(U,C | C' | CS,CS')  = disjIntersect(U,C,CS' ) | disjIntersect(U,C' | CS,CS') .
   eq disjIntersect(U,C,C' | C'' | CS) = disjIntersect(U,C,C') | disjIntersect(U,C,C'' | CS) .
-  eq disjIntersect(U,(T | F?),(T' | F'?)) = disjIntersect(T,F?,F'?,disjUnifiers(U,false,T,T')) .
+  eq disjIntersect(U,(T | F?),(T' | F'?)) = disjIntersect(T,F?,F'?,disjUnifiers(U,T =? T')) .
 
   op disjIntersect : Term QFForm? QFForm? SubstitutionPairSet -> QFCTermSet .
   eq disjIntersect(T,F?,F'?,(S,S') | SPS) = (T << S | (F? << S)  /\ (F'? << S')) | disjIntersect(T,F?,F'?,SPS) .
@@ -607,14 +639,12 @@ fmod PATTERN-OPS is
   ---      instantiated Formulas of each QFCTerm in the QFCTermSet
   op #intersect : Module QFCTerm QFCTermSet -> FOFormSubstPairSet .
   eq #intersect(U,C,C' | C'' | CS) = #intersect(U,C,C') | #intersect(U,C,C'' | CS) .
-  eq #intersect(U,(T | F?),(T' | F'?)) = (F? /\ F'?) Pair<< safeUnify(U,T,T') .
+  eq #intersect(U,(T | F?),(T' | F'?)) = (F? /\ F'?) Pair<< sharedVarUnifiers(U,T,T') .
 
   op #disjIntersect : Module QFCTerm QFCTerm -> FOFormSubstPairSet .
  ceq #disjIntersect(U,C,C') = #intersect(U,C1,C2)
-  if (S, T ,N ) := #renameAllVar(U,none,  upTerm(C ))
-  /\ (S',T',N') := #renameAllVar(U,none,N,upTerm(C'))
-  /\ C1         := downTerm(T ,noterm)
-  /\ C2         := downTerm(T',noterm) .
+  if [[N ,S ],C1] := #renameVars(nullNameData,C)
+  /\ [[N',S'],C2] := #renameVars([N,S],C') .
 
   op toCCTermSet  : QFCTermSet -> QFCTermSet .
   op toCCTermSet  : QFCTermSet QFCTermSet -> QFCTermSet .
@@ -627,16 +657,6 @@ fmod PATTERN-OPS is
 
   eq toCCTermSet1(T,F | FS,   CS) = toCCTermSet1(T,FS,CS | (T | F)) .
   eq toCCTermSet1(T,mtFormSet,CS) = CS .
-
-  op renameVars : QFCTermSet -> QFCTermSet .
-  op renameVars : Nat QFCTermSet -> QFCTermSet .
-  op renameVars : Nat QFCTermSet QFCTermSet -> QFCTermSet .
-  ---------------------------------------------------------
-  eq renameVars(CS)   = renameVars(0,CS) .
-  eq renameVars(N,CS) = renameVars(N,CS,noterm) .
-
-  eq renameVars(N,C | CS,CS') = renameVars(N,CS,CS' | (C << freshifyVars(N,vars(C)))) .
-  eq renameVars(N,noterm,CS') = CS' .
 
   op varUnifSimp  : Module QFCTermSet -> QFCTermSet .
   op varUnifSimp  : Module QFCTermSet QFCTermSet -> QFCTermSet .
@@ -665,12 +685,12 @@ endfm
 
 fmod CONSTRAINED-TERM-INVARIANT is
   pr CONSTRAINED-TERMSETPAIR .
-  pr RENAME-METAVARS .
   pr TERM-EXTRA .
+  pr RENAME-QFCTERM .
   pr SUBSTITUTION-HANDLING .
+  pr CONSTRAINED-TERMSET-SUBSTITUTIONSET .
+  pr CONSTRAINED-TERM-OPERATIONS .
 
-  op mk-pair   : Module QidSet QFCTermSet -> QFCTermSetPair .
-  op mk-pair   : Module QidSet Substitution Nat QFCTermSet QFCTermSet -> RenameData .
   op wrap-term : Module QFCTermSetPair Qid -> [QFCTermSetPair] .
   op wrap-term : Module QFCTermSet Qid -> [QFCTermSet] .
   op wrap-term : Module Term Qid -> [Term] .
@@ -679,23 +699,17 @@ fmod CONSTRAINED-TERM-INVARIANT is
   var CT CT' : QFCTerm . var D D' : QFCTermSet . var Q Q' : Qid . var S S' : Substitution .
   var C : QFForm? .
 
-  --- INP: Module QidSet QFCTermSet
-  --- PRE: QFCTermSet is well-defined with respect to Module
-  --- OUT: A ReachFormEx where D => D with all variables except VS renamed
- ceq mk-pair(M,VS,D) = (downTerm(T,noterm),downTerm(T',noterm))
-  if (S, T, N ) := mk-pair(M,VS,none,0,D,noterm)
-  /\ (S',T',N') := mk-pair(M,VS,S,   N,D,noterm) .
+  --- OUT: create QFCTermSetPair which is a copy of the input
+  ---      and all variables in the second QFCTermSet have been renamed
+  ---      EXCEPT those in QidSet
+  op mk-pair : QidSet QFCTermSet -> QFCTermSetPair .
+  op mk-pair : QidSet RenamedQFCTermSet QFCTermSet -> QFCTermSetPair .
+  op mk-pair : QFCTermSet RenamedQFCTermSet -> QFCTermSetPair .
+  -------------------------------------------------------------
+  eq mk-pair(VS,D)            = mk-pair(VS,renameVarsCS([0,idsub(VS)],D ),D) .
+  eq mk-pair(VS,[[N,S],D],D') = mk-pair(D, renameVarsCS([N,idsub(VS)],D')  ) .
+  eq mk-pair(D,[[N,S],D'])    = (D,D') .
 
-  --- INP: Module QidSet S:Substitution N:Nat QFCTermSet QFCTermSet
-  --- PRE: Arguments are well-defined with respect to Module
-  --- OUT: Renamed QFCTermSet where variables in VS inherit their value from
-  ---      the substitution S and all other variables have values generated
-  ---      to be fresh with respect to S and Nat N
- ceq mk-pair(M,VS,S,N,CT | D,D')      = mk-pair(M,VS,S',N',D,CT' | D')
-  if (S',T,N') := #renameAllVar(M,S |>* varsToTermList(VS),N,upTerm(CT))
-  /\  CT'      := downTerm(T,noterm)
-  /\  CT' =/= noterm .
-  eq mk-pair(M,VS,S,N,noterm,CT | D') = (S,upTerm(CT | D'),N) .
 
   eq wrap-term(M,(D,D'),Q)      = (D,wrap-term(M,D',Q)) .
   eq wrap-term(M,(T | C) | D,Q) = (wrap-term(M,T,Q) | C) | wrap-term(M,D,Q) .
@@ -707,7 +721,7 @@ fmod CONSTRAINED-TERM-PRINTER is pr CONSTRAINED-TERM . pr FOFORM-PRINTER . pr CO
   var M : Module . var T : Term . var F : FOForm? .
 
   op print : Module CTerm? -> QidList .
- ceq print(M,(T | F)) = printTerm(M,T) &sp '\r '||| '\y &sp print(M,F) '\o
+ ceq print(M,(T | F)) = printDisambiguatedTerm(M,T) &sp '\r '||| '\y &sp print(M,F) '\o
   if wellFormed(M,(T | F)) .
   eq print(M,noterm)  = nil .
   eq print(MK:[Module],CK:[CTerm?]) = 'print 'error: 'unable 'to 'print 'constrained 'term [owise] .
@@ -777,7 +791,7 @@ fmod CONSTRAINED-TERM-TRANSFORM is
       CT
     fi | transform(U,CT,VS,SS,CTS) .
   eq transform(U,CT,VS,SS,noterm) = noterm .
-  eq transform(U,VSub,SS,CT) = CT << (invert(VSub) << renameVars(nameData(maxVar(vars(CT))),SS)) .
+  eq transform(U,VSub,SS,CT) = CT << (invert(VSub) << renameVars(nameData(maxVar(false,vars(CT))),SS)) .
 
   ---op transform : CTerm FOForm?Set CTermSet -> CTermSet .
 endfm
@@ -835,7 +849,7 @@ fmod CONSTRAINED-TERM-SPLIT is
 
   eq split-by-form(U,CT | CTS,PT,FS,VS,CTS') = split-by-form(U,CTS,PT,FS,VS,CTS' |
     if match#(U,false,PT,CT,0) :: Substitution
-      then split-by-form(CT,FS << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(vars(CT)),VS)))
+      then split-by-form(CT,FS << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(false,vars(CT)),VS)))
       else CT
     fi) .
   eq split-by-form(U,noterm,PT,FS,VS,CTS') = CTS' .
@@ -849,8 +863,8 @@ fmod CONSTRAINED-TERM-SPLIT is
 
   eq split-by-cover(U,CT | CTS,PT,T,TS,VS,CTS') = split-by-cover(U,CTS,PT,T,TS,VS,CTS' |
     if debugPrintBool(match#(U,false,PT,CT,0) :: Substitution)
-      then split-by-cover(CT,T  << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(vars(CT)),VS)),
-                             TS << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(vars(CT)),VS)))
+      then split-by-cover(CT,T  << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(false,vars(CT)),VS)),
+                             TS << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(false,vars(CT)),VS)))
       else CT
     fi) .
   eq split-by-cover(U,noterm,PT,T,TS,VS,CTS') = CTS' .
@@ -864,7 +878,7 @@ fmod CONSTRAINED-TERM-SPLIT is
 
   eq split-by-neg(U,CT | CTS,PT,F,VS,CTS') = split-by-neg(U,CTS,PT,F,VS,CTS' |
     if match#(U,false,PT,CT,0) :: Substitution
-      then split-by-neg(CT,F << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(vars(CT)),VS)))
+      then split-by-neg(CT,F << (match#(U,false,PT,CT,0) ; freshifyVars(maxVar(false,vars(CT)),VS)))
       else CT
     fi) .
   eq split-by-neg(U,noterm,PT,F,VS,CTS') = CTS' .

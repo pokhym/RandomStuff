@@ -214,6 +214,7 @@ fmod META-RLTL-COMMAND is
    op auto_.                 : Nat -> MetaRLTLCommand [ctor] .
    op auto*`.                : -> MetaRLTLCommand [ctor] .
    op auto`.                 : -> MetaRLTLCommand [ctor] .
+   op undo`.                 : -> MetaRLTLCommand [ctor] .
    --- delete unwanted goals
    op focus_.                : NeSet{Nat} -> MetaRLTLCommand [ctor] .
    op focus_.                : @Term@ -> MetaRLTLCommand [ctor] .
@@ -292,6 +293,7 @@ fmod RLTL-COMMAND is
    op select-rls        : QidList -> RLTLCommand [ctor] .
    op select            : Module Qid -> RLTLCommand [ctor] .
    op continue          : -> RLTLCommand [ctor] .
+   op undo              : -> RLTLCommand [ctor] .
    op delete            : -> RLTLCommand [ctor] .
    --- output commmands
    op ls                : Bool -> RLTLCommand  [ctor] .
@@ -337,6 +339,7 @@ fmod PARSE-RLTLCOMMAND is
    eq rltl-parse((M,S),'auto_.[T1])                    = auto(downNat(T1)) .
    eq rltl-parse((M,S),'auto`..MetaRLTLCommand)        = auto(1) .
    eq rltl-parse((M,S),'auto*`..MetaRLTLCommand)       = auto(unbounded) .
+   eq rltl-parse((M,S),'undo`..MetaRLTLCommand)        = undo .
   ceq rltl-parse((M,S),'try-finish_.[T1])              = try-finish(downNeNatSet(T1)) if downNeNatSet(T1) :: NeSet{Nat} .
   ceq rltl-parse((M,S),'try-finish_.[T1])              = try-finish(parse-qfcterm((M,S),true,T1)) if parse-qfcterm((M,S),true,T1) :: QFCTerm .
    eq rltl-parse((M,S),'try-finish_/_.[T1,T2])         = try-finish(parse-qfcterm((M,S),true,T1),parse-qfcterm((M,S),true,T2)) .
@@ -444,6 +447,7 @@ mod RLTL-ACTION-IMPL is
   var A A' : RLTLAction .
   var M M' : RLTLMode .
   var N N' TOT : Nat .
+  var UR : UndoRecord .
   var NS : Set{Nat} .
   var NNS : NeSet{Nat} .
   var AK : [RLTLAction] .
@@ -462,7 +466,7 @@ mod RLTL-ACTION-IMPL is
      if get-err(PM) == true
        then (proof : [PM], mode : M, output : (L 'Error 'detected: 'cannot 'continue), AS)
        else if active-mode?(M)
-         then do-ui(size(readyGoals(get-prf(PM))),run-cycle(proof : {PM}, mode : M, output : L, AS))
+         then do-ui(size(readyGoals(get-prf(PM))),undoRec(get-gn(PM),getid(readyGoals(get-prf(PM)))),run-cycle(proof : {PM}, mode : M, output : L, AS))
          else proof : [PM], mode : M, output : (L 'Error: 'continue 'can 'only 'be 'used 'while 'taking 'proof 'steps), AS
      fi fi .
   eq process-action(PM & AK,AS) = if get-err(PM) == true then process-action(write(if nonprintable(get-out(PM)) then 'Internal 'Error: 'process-action 'recieved 'err 'state else get-out(PM) fi),AS) else process-action(update(PM) ; AK,AS) fi .
@@ -488,9 +492,10 @@ mod RLTL-ACTION-IMPL is
 
   --- perform UI output actions
   -----------------------------------------
-  op do-ui : Nat AttributeSet ~> AttributeSet .
-  eq do-ui(N,mode : M, proof : [PM], output : L, AS) =
-    mode : M, proof : [flipPaused(clear(PM))], output : (L get-out(PM) handle-output(M,PM) '\n showSize(N,size(goalsByStatus(paused,get-prf(PM))))), AS .
+  --- Number of Goals Processsed, UndoRecord, Tool Attributes
+  op do-ui : Nat UndoRecord AttributeSet ~> AttributeSet .
+  eq do-ui(N,UR,mode : M, proof : [PM], output : L, AS) =
+    mode : M, proof : [raw-set(flipPaused(clear(PM)),lst(UR))], output : (L get-out(PM) handle-output(M,PM) '\n showSize(N,size(goalsByStatus(paused,get-prf(PM))))), AS .
 
   op handle-output : RLTLMode ProofMetadata -> QidList .
   eq handle-output(M,PM) =
@@ -606,9 +611,8 @@ mod RLTL-PROC-CMD is
   op $addgls : Module LabelReachFormList Nat                        -> ProofGoalSet .
   op $renrf  : Module ReachForm                                     ~> ReachForm .
   op $cases  : Module QFCTerm Variable TermSet ProofGoalSet         ~> ProofGoalSet .
-  op $cases1 : Module TermData ProofGoalSet                         ~> ProofGoalSet .
-  op $cases1a : Module QFCTerm? Variable TermSet ProofGoalSet       ~> ProofGoalSet .
-  op $cases2 : Variable TermSet ProofGoalSet                        ~> ProofGoalSet .
+  op $cases  : Module QFCTerm Variable TermSet ProofGoalSet ProofGoalSet ~> ProofGoalSet .
+  op $cases1 : Substitution QFCTerm Variable TermSet ProofGoal      ~> ProofGoal .
   op $split  : Bool QFForm? QFForm? ProofGoalSubstPairSet           ~> ProofGoalSet .
 
   var BD : Bound . var NS : Set{Nat} . var N M : Nat . var B : Bool . var S S' : Substitution .
@@ -618,7 +622,7 @@ mod RLTL-PROC-CMD is
   var QF QF' QF1 QF2 : QFForm? . var QFT QFT2 : QFCTerm . var MF MF' : QFCTermSet .
   var F : ReachForm .
   var LX : LabelReachFormEx . var LF LF' : LabelReachForm . var LS : LabelReachFormList . var LK : [LabelReachFormEx] .
-  var G : ProofGoal . var GS : ProofGoalSet . var GK : [ProofGoalSet] . var R : ProofMetadata .
+  var G : ProofGoal . var GS GS' : ProofGoalSet . var GK : [ProofGoalSet] . var R : ProofMetadata .
   var G+SS : ProofGoalSubstPairSet .
   var Idx : FindResult .
 
@@ -627,27 +631,23 @@ mod RLTL-PROC-CMD is
   eq inv2(R,LK)         = write('Internal 'Error: 'inv1) [owise] .
 
   eq $addgls(U,R,LS,B)      = merge(R,lift-result(mt,R,if B then axs(LS) else none fi,$addgls(U,LS,0))) .
-  eq $addgls(U,LF ; LS,N)   = mkGoalsAddVars(none,N,default(LF),active,none,$renrf(U,trans(LF))) && $addgls(U,LS,s(N)) .
+  eq $addgls(U,LF ; LS,N)   = mkGoalsAddVars(none,N,default(LF),active,none,renameVars(trans(LF))) && $addgls(U,LS,s(N)) .
   eq $addgls(U,nil,N)       = mt .
- ceq $renrf(U,F)            = downTerm(renameTmpVar(U,upTerm(F)),(mt).MaybeReachForm)
-                                if downTerm(renameTmpVar(U,upTerm(F)),(mt).MaybeReachForm) =/= mt .
   eq $pall(U,LF)            = print(U,LF) .
   eq $pall(U,LF ; LF' ; LS) = print(U,LF) '\n printSpaces(8) $pall(U,LF' ; LS) .
   eq $pall(U,nil)           = &mt .
 
-  --- TODO: remove dependency on old renaming functionality
   --- PRE: Goals should be all current goals that pattern term T matches
   --- OUT: Goal set GS such that:
   ---        1. GS has been generalized by a pattern term T
   ---        2. The strategy for GS has been prefixed by a case(V,TS)
   ---      where T,V,TS have been alpha-renamed by the same substitution to
   ---      avoid conflicts with any variables already in goals GS
-  eq $cases (U,QFT,V,TS,GS) = $cases1(U,#renameAllVar(U,upTerm(GS),(upTerm(QFT),V,TermList(TS))),GS) .
-  eq $cases1(U,termdata((T,V,TL),Idx),GS) = $cases1a(U,downTerm(T,noterm),V,TermSet(TL),GS) .
-  eq $cases1a(U,(T | mtForm),V,TS,GS) = $cases2(V,TS,generalizeGoals(U,T,GS)) .
-  eq $cases1a(U,(T | QF),V,TS,GS) = $cases2(V,TS,generalizeGoals(U,(T | QF),GS)) [owise] .
-  eq $cases2(V,TS,G && GS) = prestrat(G,case(V,TS) ;; simplify(true) ;; subsume ;; termcheck ;; pause) && $cases2(V,TS,GS) .
-  eq $cases2(V,TS,mt) = mt .
+  eq $cases(U,QFT,V,TS,GS)          = $cases(U,QFT,V,TS,GS,mt) .
+  eq $cases(U,QFT,V,TS,G && GS,GS') = $cases(U,QFT,V,TS,GS,GS' && $cases1(match#(U,false,QFT,antc(getbody(G)),0),QFT,V,TS,G)) .
+  eq $cases(U,QFT,V,TS,mt     ,GS') = GS' .
+
+  eq $cases1(S,QFT,V,TS,G) = prestrat(G,case(V << S,renameVars(nameData(maxVar(true,getallvars(G))),TS)) ;; simplify(true) ;; subsume ;; termcheck ;; pause) .
 
   --- OUT: Goal set with split strategy applied to front and split conditions appropriately renamed
   eq $split(B,QF1,QF2,(G,S) && G+SS) = prestrat(G,split(B,QF1 << S, QF2 << S) ;; simplify(true) ;; subsume ;; termcheck ;; pause) && $split(B,QF1,QF2,G+SS) .
@@ -698,8 +698,12 @@ mod RLTL-PROC-CMD is
                                                else write('Error: 'split 'pattern 'failed 'to 'match 'any 'goals)
                                            fi else write('Error: 'split 'pattern 'has 'wrong 'type)
                                          fi .
-  eq proc(continue,        R) = continue .
-  eq proc(auto(BD),        R) = set-mode(active(BD)) ; continue .
+  eq proc(continue,        R) = if get-on(R) == true then continue else write('Warning: 'proof 'not 'started) fi .
+  eq proc(auto(BD),        R) = if get-on(R) == true then set-mode(active(BD)) ; continue else write('Warning: 'proof 'not 'started) fi .
+  eq proc(undo,            R) = if get-lst(R) == noUndo
+                                  then write('Warning: 'no 'undo 'record 'exists)
+                                  else undo(get-lst(R),get-prf(R)) & write('Successfully 'reverted 'last 'auto 'command)
+                                fi .
   eq proc(try-finish(NS),  R) = if getgl!(get-prf(R),NS) :: ProofGoalSet
                                  then atomic-run(true,R,getgl!(get-prf(R),NS)) & (write('\n 'Finished 'given 'goals '\n) ; write-if-done)
                                  else write('Some 'target 'goal/goals 'not 'found: '\n printSpaces(8) printNatSet(NS))
@@ -727,10 +731,8 @@ mod RLTL-PROC-CMD is
 
   --- commands to be typed ANYTIME
   eq proc(subsumeby(N,M),   R) = if getgl!(get-prf(R),(N,M)) :: ProofGoalSet
-                                    then delgl(R,getgl!(R,N)) & if
-                                        matches(get-mod(R),getbody(getgl!(get-prf(R),M)),
-                                          getbody(getgl!(get-prf(R),N))) :: NeSubstitutionSet
-                                      then write('Goal printPar(N) 'subsumed 'by printPar(M) 'via 'matching '\n)
+                                    then delgl(R,getgl!(R,N)) & if subsumeReachform(R,getbody(getgl(get-prf(R),M)),getbody(getgl(get-prf(R),N))) == true
+                                      then write('Goal printPar(N) 'subsumed 'by printPar(M) '\n)
                                       else write('Goal printPar(N) 'could 'not 'be 'automatically 'subsumed;
                                                  'for 'full 'verification '`, &sp 'please 'check 'the 'subsumption 'manually '\n)
                                     fi else write('Goals 'not 'found)
