@@ -1,10 +1,11 @@
 # What's Here
-This folder contains proofs and tools that are written in Maude.
+This folder contains proofs and tools that I've written in Maude.
 Each folder will contain the code for the system in question and a README discussing the specificaiton.
 If there is a paper attached to a specific algorithm it will either be cited in the README or have a pdf in the folder.
 
 # Tools
-rltool: Developed by Stephen Skirik, mirrored here due to the fact its a work in progress and future updates may render current correct proofs incorrect
+rltool: Developed by Stephen Skirik, mirrored here due to the fact its a work in progress and future updates may render current correct proofs incorrect.
+I did not write any of the code in this folder
 
 # Systems
 abp:
