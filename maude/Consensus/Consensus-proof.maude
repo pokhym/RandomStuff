@@ -1,0 +1,12 @@
+load Consensus.maude
+load ~/soft/maude/rltool/rltool.maude
+set show advisories off .
+(select STATE-RULES .)
+(use tool conrew for validity on STATE-RULES with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on STATE-RULES .)
+(declare-vars (S:State) U (A:Msg) U (B:Msg) U (C:Msg) U (T:Bool) U (TT:Bool) U (A':Msg) U (B':Msg) U (C':Msg) U (T':Bool) U (TT':Bool) .)
+(def-term-set ([ A,T | C | B,TT ]) | true .)
+(add-goal agreement : (A,T | C | B,TT) | (init(A,T | C | B,TT)) = (true) => (A',T' | C' | B',TT') | (accepted?(A',T' | C' | B',TT')) = (true) .)
+(start-proof .)
+(auto .)
+quit .

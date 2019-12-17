@@ -1,0 +1,68 @@
+set include BOOL off .
+fmod IBOOL is
+    --- use Maude built-in Booleans
+    --- pr BOOL-OPS .
+    sort Bool .
+    op true : -> Bool [ctor metadata "0"] .
+    op false : -> Bool [ctor metadata "1"] .
+    op _and_ : Bool Bool -> Bool [metadata "2"] .
+    op _or_ : Bool Bool -> Bool [metadata "3"] .
+    op not(_) : Bool -> Bool [metadata "4"] .
+    vars P1 P2 : Bool .
+    eq P1 and false = false .
+    eq P1 and true = P1 .
+    eq P1 or true = true .
+    eq true or P1 = true .
+    eq false or P1 = P1 .
+    eq P1 or false = P1 .
+    eq not(false) = true .
+    eq not(true) = false .
+endfm
+
+fmod MSGS is
+    pr IBOOL .
+    sort Msg .
+    op empty : -> Msg [ctor metadata "5"] .
+    op a : -> Msg [ctor metadata "6"] .
+    op b : -> Msg [ctor metadata "7"] .
+    op _~M_ : Msg Msg -> Bool [ctor metadata "7"] .
+    eq a ~M a = true .
+    eq b ~M b = true .
+    eq a ~M b = false .
+    eq b ~M a = false .
+    eq empty ~M a = false .
+    eq empty ~M b = false .
+    eq a ~M empty = false .
+    eq b ~M empty = false .
+    eq empty ~M empty = true .
+endfm
+
+fmod STATE is
+    pr MSGS .
+    sort State .
+    op _,_|_|_,_ : Msg Bool Msg Msg Bool -> State [ctor metadata "8"] .
+    op init(_) : State -> Bool [ctor metadata "9"] .
+    op accepted?(_) : State -> Bool [metadata "10"] .
+    vars S : State .
+    vars A B C : Msg .
+    vars T TT : Bool .
+    eq init(empty,false | empty | empty,false) = true .
+    eq init(S) = false .
+    eq accepted?(A,true | A | A,true) = true .
+    eq accepted?(S) = false .
+endfm
+
+mod STATE-RULES is
+    pr STATE .
+    op [_,_|_|_,_] : Msg Bool Msg Msg Bool -> State [ctor metadata "11"] .
+    var A B C D : Msg .
+    var T TT TTT : Bool .
+    rl [choose-msg-a] : empty,false | C | B,T => a,false | C | B,T .
+    rl [choose-msg-b] : A,T | C | empty,false => A,T | C | b,false .
+    crl [propose-a] : A,false | empty | B,false => A,false | A | B,false if A ~M empty = false .
+    crl [propose-b] : A,false | empty | B,false => A,false | B | B,false if B ~M empty = false .
+    crl [accept-a] : A,false | C | B,T => C,true | C | B,T if C ~M empty = false .
+    crl [accept-b] : A,T | C | B,false => A,T | C | C,true if C ~M empty = false .
+    rl [stop] : A,T | C | B,TT => [A,T | C | B,TT] .
+endm
+search [5] empty,false | empty | empty,false =>+ S:State such that accepted?(S:State) = true .

@@ -1,0 +1,27 @@
+--- Probably going to need to declare a nil operator for nodes
+
+load SelfStabilizingSpanningTree.maude
+load ~/soft/maude/rltool/rltool.maude
+
+set show advisories off .
+
+(select SELF-STABILIZING-STOP .)
+(use tool conrew for validity on SELF-STABILIZING-STOP with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on SELF-STABILIZING-STOP .)
+
+--- (select-rls node-level-not-plus-one-parent parent-of-node-is-in-error-state recovery .)
+
+(declare-vars (G:Graph) U (L:NeiNatList) U (G':Graph) U (L':NeiNatList) U (GG:NeGraph) U (LL:NeiNatList) U (N:Node) U (M:Node) .)
+
+(def-term-set ([ G ]) | true .)
+
+(add-goal stable : 
+    (< G >) | (connected?(G)) = (true) =>
+    ([ G' ]) | (connected?(G')) = (true) /\ (connected?(buildMST(G'))) = (true)
+.)
+
+(start-proof .)
+
+(auto .)
+(auto .)
+quit .

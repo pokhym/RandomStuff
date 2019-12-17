@@ -1,0 +1,467 @@
+set include BOOL off .
+
+--- TODO: Create a python to gneerate all the test cases for each specific number
+---  of nodes.  Afterwards, generate graphs
+--- TODO: http://maude.cs.uiuc.edu/maude1/manual/maude-manual-html/maude-manual_11.html Uniqueness!
+
+--- G: Current step, G': Previous step, orig: Original graph
+--- If current step + next step =/= current step update the "current step" aka next step to be the disjoint union
+--- ceq G, G', orig = G.Neighbors, G.neighbors + G', orig if G.neighbors + G' =/= G'
+--- eq connected?(G, G', origGraph) = connected?(graphToNeighbors(G), graphToNeighbors(G) ; G', origGraph) .
+--- if we are at a step where taking one step gives us no change and the disjoint unionl is the original graph
+--- then this graph is connected
+--- ceq G, G', orig = true if G.neighbors + G' = orig and G.neighbors + G' == G'
+--- ceq connected?(G, G', origGraph) = true if (((G ~G G') = true) and ((G ~G origGraph) = true)) = true .
+--- otherwise we have reached a stable state and the graph is not connected
+--- ceq G, G', orig = false if G.neighbors + G' =/= orig and G.neighbors + G' == G'
+--- ceq connected?(G, G', origGraph) = false if (((G ~G G') = true) and ((G ~G origGraph) = false)) = true .
+
+
+--- Booleans
+fmod IBOOL is
+    --- use Maude built-in Booleans
+    --- pr BOOL-OPS .
+    sort Bool .
+    op true : -> Bool [ctor metadata "0"] .
+    op false : -> Bool [ctor metadata "1"] .
+    op _and_ : Bool Bool -> Bool [metadata "2"] .
+    op _or_ : Bool Bool -> Bool [metadata "3"] .
+    op not(_) : Bool -> Bool [metadata "4"] .
+    vars P1 P2 : Bool .
+    eq P1 and false = false .
+    eq P1 and true = P1 .
+    eq P1 or true = true .
+    eq true or P1 = true .
+    eq false or P1 = P1 .
+    eq P1 or false = P1 .
+    eq not(false) = true .
+    eq not(true) = false .
+endfm
+
+---- Natural numbers
+fmod INAT is
+    pr IBOOL .
+    sort iNat .
+    op 0 : -> iNat [ctor metadata "5"] .
+    op s_ : iNat -> iNat [ctor metadata "6"] .
+    op p_ : iNat -> iNat [ctor metadata "7"].
+    vars N N' : iNat .
+    --- equality enrichment
+    op _~iN_ : iNat iNat -> Bool [comm metadata "8"] .
+    --- <=
+    op _<=_ : iNat iNat -> Bool [metadata "9"] .
+    --- >
+    op _>_ : iNat iNat -> Bool [metadata "10"] .
+
+    eq p 0 = 0 .
+    eq p(s N) = N .
+
+    eq N ~iN N = true .
+    eq s N ~iN s N' = N ~iN N' .
+    eq 0 ~iN s N = false .
+    eq N ~iN s N = false .
+
+    eq 0 <= 0 = true .
+    eq N <= N = true .
+    eq s N <= 0 = false .
+    eq 0 <= s N' = true .
+    eq s N <= s N' = N <= N' .
+
+    eq N > N' = not(N <= N') .
+endfm
+
+--- list of naturals
+--- This only contains unique elements
+fmod INAT-LIST is
+    pr INAT .
+    sort iNatList .
+	sort NeiNatList .
+	subsort iNat < NeiNatList .
+	subsort NeiNatList < iNatList .
+    op nil : -> iNatList [ctor metadata "12"] .
+
+    op __ : iNatList iNatList -> iNatList [ctor assoc comm prec 61 metadata "13" id: nil] .
+    op __ : iNatList NeiNatList -> NeiNatList [ctor ditto metadata "13"] .
+    op __ : NeiNatList iNatList -> NeiNatList [ctor ditto metadata "13"] .
+    op _inNL_ : iNat iNatList -> Bool [metadata "14"] .
+    op _~iNL_ : iNatList iNatList -> Bool [comm metadata "15"] .
+    op lenNL : iNatList -> iNat [metadata "16"] .
+    op uniqueNL : iNatList -> Bool [metadata "17"] .
+    op _subList_ : iNatList iNatList -> Bool [metadata "18"] .
+    op gen-list : iNat -> NeiNatList [metadata "19"] .
+
+    var L L' : iNatList .
+    vars P Q R S : NeiNatList .
+    var N M : iNat .
+
+    --- uniqueness
+    eq L L = L .
+    --- eq L L L' = L L' .
+
+    eq P ~iNL P = true .
+    eq 0 ~iNL nil = false .
+    eq s(N) ~iNL nil = false .
+    eq (P Q) ~iNL 0 = false .
+    eq (P Q) ~iNL s(N) = false .
+    eq (P Q) ~iNL nil = false .
+    eq (P Q) ~iNL P = false .
+    eq (P Q) ~iNL Q = false .
+    eq (P Q) ~iNL (P R) = Q ~iNL R .
+    eq (P Q) ~iNL (R Q) = P ~iNL R .
+    eq (0 P) ~iNL (0 Q) = P ~iNL Q .
+    eq (P 0) ~iNL (Q 0) = P ~iNL Q .
+    eq (s(N) P) ~iNL (s(M) Q) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (P s(N)) ~iNL (Q s(M)) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (0 P) ~iNL (s(N) Q) = false .
+    eq (P 0) ~iNL (Q s(N)) = false .
+
+    eq N inNL nil = false .
+    eq N inNL (L N L') = true .
+    eq N inNL (L M L') = false .
+
+    eq lenNL(nil) = 0 .
+    eq lenNL(P L) = s lenNL(L) .
+
+    eq uniqueNL(nil) = true .
+    eq uniqueNL(N L) = not(N inNL L) and uniqueNL(L) .
+
+    eq nil subList nil = true .
+    eq nil subList P = true .
+    eq P subList nil = false .
+    eq (N L) subList L' = (N inNL L') and (L subList L') .
+
+    eq gen-list(0) = (0 nil) .
+    eq gen-list(s N) = (s N) gen-list(N) .
+endfm
+
+fmod NODE is
+    pr INAT .
+    pr INAT-LIST .
+    sort Node .
+
+    op Root : -> Node [ctor metadata "20"] .
+    op mtNode : -> Node [ctor metadata "21"] .
+    --- NodeID Level |-> Parent :: Neighbors
+    --- If level = 0 then is root
+    op _||_|->_::_ : iNat iNat iNat iNatList -> Node [ctor metadata "22"] .
+    op getId(_) : Node -> iNat [metadata "23"] .
+    op getLevel(_) : Node -> iNat [metadata "24"] .
+    op getParent(_) : Node -> iNat [metadata "25"] .
+    op getNeighbors(_) : Node -> iNatList [metadata "26"] .
+    op isRoot(_) : Node -> Bool [metadata "27"] .
+
+    vars N M P : iNat .
+    vars L : iNatList .
+    eq getId(N || M |-> P :: L) = N .
+    eq getLevel(N || M |-> P :: L) = M .
+    eq getParent(N || M |-> P :: L) = P .
+    ceq isRoot(N || M |-> P :: L) = true if M ~iN 0 = true .
+    eq isRoot(N || M |-> P :: L) = false .
+endfm
+
+fmod GRAPH is
+    pr NODE .
+    sorts NeGraph Graph .
+    subsorts Node < NeGraph < Graph .
+
+    op mtGraph : -> Graph [ctor metadata "28"] .
+    op _;_ : Graph Graph -> Graph [ctor assoc comm metadata "29" id: mtGraph] .
+    op _;_ : Graph NeGraph -> NeGraph [ctor assoc comm metadata "30" id: mtGraph] .
+    op _;_ : NeGraph Graph -> NeGraph [ctor assoc comm metadata "31" id: mtGraph] .
+    op _inGraph_ : Node Graph -> Bool [metadata "32"] .
+    op _Ugraph_ : Graph Graph -> Graph [metadata "33"].
+    op numNode(_) : Graph -> iNat [metadata "34"] .
+    op _~G_ : Graph Graph -> Bool [metadata "35"] .
+    op rootExist(_) : Graph -> Bool [metadata "36"] .
+
+    op validNeighborsHelper(_,_) : Graph Graph -> Bool [metadata "37"] .
+    op validNeighbors(_,_) : Graph Graph -> Bool [metadata "38"] .
+
+    --- Returns the union of nodes of all the neighbors of the input
+    --- IN: A, B -> OUT: A.neighbors U B.neighbors
+    op nodeToNeighbors(_,_) : Node Graph -> Graph [metadata "39"] .
+    op graphToNeighbors(_,_,_) : Graph Graph Graph -> Graph [metadata "40"] .
+
+    --- this checks if it is possible for a graph to be connected
+    --- aka if it is possible to generate a list of edges that results in a minimally
+    --- corrected graph
+    op connected?(_) : Graph -> Bool [metadata "41"] .
+    --- op nodeConnected?(_) : Node Graph iNatList -> Bool .
+    op nodeCorrectID(_,_) : Graph Graph -> Bool [metadata "42"] .
+    op validNodeNumbers(_,_) : Graph iNatList -> Bool [metadata "43"] .
+    op buildMST(_) : Graph -> Graph [metadata "44"] .
+
+    vars A B C D E F H : iNat .
+    vars G G' G'' G''' origGraph : Graph .
+    vars NG : NeGraph .
+    vars N M : Node .
+    vars L L' LL LLL : iNatList .
+    vars NeL : NeiNatList .
+
+    eq numNode(mtGraph) = 0 .
+    eq numNode(N ; G) = s numNode(G) .
+
+    --- remove duplicates
+    --- eq G ; G ; G' = G ; G' .
+    eq G ; G = G .
+    eq (A || B |-> C :: L) ; (A || E |-> F :: L') ; G = (A || B |-> C :: L) ; G .
+    --- union
+    --- eq G Ugraph G' = G ; G' .
+
+    eq mtGraph ~G mtGraph = true .
+    eq NG ~G mtGraph = false .
+    eq mtGraph ~G NG = false .
+    eq G ~G G = true .
+    eq G ~G G' = false .
+
+    eq validNeighborsHelper((A || B |-> C :: (D L)), (D || E |-> F :: (A L')) ; G) = true and validNeighborsHelper((A || B |-> C :: L), G) .
+    eq validNeighborsHelper((A || B |-> C :: (D L)), (E || F |-> H :: L') ; G) = validNeighborsHelper((A || B |-> C :: (D L)), G) . 
+    eq validNeighborsHelper((A || B |-> C :: nil), NG) = true .
+    eq validNeighborsHelper((A || B |-> C :: NeL), mtGraph) = false .
+    eq validNeighbors(mtGraph, origGraph) = true .
+    eq validNeighbors(N ; G, origGraph) = validNeighbors(G, origGraph) and validNeighborsHelper(N, origGraph) .
+
+    eq rootExist((0 || 0 |-> 0 :: L) ; G) = true .
+    eq rootExist(G) = false .
+    eq rootExist(mtGraph) = false .
+
+    eq nodeCorrectID(mtGraph, origGraph) = true .
+    eq nodeCorrectID((A || B |-> C :: (D L)) ; G, origGraph) = (A inNL gen-list(numNode(origGraph))) and nodeCorrectID(G, origGraph) .
+
+    ceq connected?(G) = true if (graphToNeighbors(G, G, mtGraph) ~G G) = true .
+    ceq connected?(G) = false if (graphToNeighbors(G, G, mtGraph) ~G G) = false .
+
+    --- return the neighbors of a node
+    eq nodeToNeighbors((A || B |-> C :: L), mtGraph) = mtGraph .
+    eq nodeToNeighbors((A || B |-> C :: nil), (E || F |-> H :: L') ; G) = mtGraph .
+    eq nodeToNeighbors((A || B |-> C :: (D L)), (D || F |-> H :: L') ; G) = (D || F |-> H :: L') ; nodeToNeighbors((A || B |-> C :: L), G) .
+    --- return all the neighbors of a whole graph by checking the neighbors of each node
+    --- if we iterate through all the nodes and we are able to check if we are actually a connected graph
+    --- Iterating over G, G' contains original, G'' contains built neighbors graph
+    eq graphToNeighbors(mtGraph, G', G'') = G'' .
+    eq graphToNeighbors(N ; G, G', G'') = graphToNeighbors(G, G', G'' ; nodeToNeighbors(N, G')) .
+
+    eq validNodeNumbers(mtGraph, nil) = true .
+    eq validNodeNumbers(mtGraph, NeL) = false .
+    eq validNodeNumbers(NG, nil) = false .
+    eq validNodeNumbers((A || B |-> C :: L) ; G, (A L')) = true and validNodeNumbers(G, L') .
+    eq validNodeNumbers((A || B |-> C :: L) ; G, (D L')) = false .
+
+    eq buildMST(mtGraph) = mtGraph .
+    eq buildMST((A || B |-> C :: L) ; G) =  (A || B |-> C :: C) ; buildMST(G) .
+endfm
+
+--- 
+red nodeToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)), (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+red graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    mtGraph) .
+red graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    mtGraph) .
+
+--- false 
+red graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    mtGraph) ~G graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    mtGraph) .
+red graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    mtGraph) ~G mtGraph .
+red mtGraph ~G graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0) , 
+    mtGraph) .
+--- true 
+red mtGraph ~G mtGraph .
+red graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    mtGraph) ~G graphToNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ,
+    mtGraph) .
+
+red connected?((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+red connected?((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: nil) ) .
+
+red validNeighbors((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0), (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+
+red rootExist((s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+red rootExist((s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+red rootExist(mtGraph) .
+
+red nodeCorrectID(mtGraph, mtGraph) .
+red nodeCorrectID((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0), (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+red nodeCorrectID((0 || 0 |-> 0 :: (s 0 s s 0)) ; (s s s s s s s s s s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0), (0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)) ; (s s s 0 || s s s 0 |-> s 0 :: s 0) ; (s s s s 0 || s s s s 0 |-> s s 0 :: s s 0)) .
+
+red nodeCorrectID((s s 0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0)),(0 || 0 |-> 0 :: (s 0 s s 0)) ; (s 0 || s 0 |-> 0 :: (0 s s s 0)) ; (s s 0 || s s 0 |-> 0 :: (0 s s s s 0))) .
+
+red buildMST((0 || 0 |-> 0 :: s 0) ; (s 0 || s 0 |-> 0 :: (0 s s 0)) ; (s s 0 || s s s 0 |-> s 0 :: s 0)) .
+red connected?(buildMST((0 || 0 |-> 0 :: s 0) ; (s 0 || s 0 |-> 0 :: (0 s s 0)) ; (s s 0 || s s s 0 |-> s 0 :: s 0))) .
+--- test connected after running recovery on above
+red connected?((0 || 0 |-> 0 :: s 0) ; (s 0 || s 0 |-> 0 :: (0 s s 0)) ; s s 0 || s s 0 |-> s 0 :: s 0) .
+
+mod SELF-STABILIZING is
+    pr GRAPH .
+    sort State .
+    op <_> : Graph -> State [ctor metadata "45"] .
+
+    vars A B C D Lv Lv' : iNat .
+    vars L L' : iNatList .
+    vars G : Graph .
+
+    --- Node's level is not equal to the parent's + 1
+    crl [node-level-not-plus-one-parent] :
+        < (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G > => < (A || s Lv' |-> B :: L) ; (C || Lv' |-> D :: L') ; G > 
+        if  (
+                (
+                    (
+                        --- Not max level
+                        not(Lv ~iN (numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G))) and 
+                        --- Child level must not be = Parent level + 1 and parent is not error
+                        (
+                            (not(Lv ~iN s Lv'))
+                            and
+                            not(Lv' ~iN (numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)))
+                        )
+
+                    ) 
+                    and 
+                    (
+                        --- Not max depth
+                        not(Lv' ~iN (numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G))) and
+                        --- Must be neighbors
+                        ((A inNL L') and (C inNL L))
+                    )
+                )
+                and
+                (
+                    (
+                        --- both nodes cannot be the root
+                        (not(A ~iN 0) and not(C ~iN 0)) and
+                        --- C must be A's parent
+                        (C ~iN B)
+                    )
+                    and
+                    (
+                        --- all nodes must have valid neigbors 0 -> 1 and 0 <- 1 and neighbors must be in TODO: genlist
+                        (
+                            validNeighbors((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G, (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                            --- there must exist a root
+                            and rootExist((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                        )
+                        --- valid node number from genlist
+                        and nodeCorrectID((A || s Lv' |-> B :: L) ; (C || Lv' |-> D :: L') ; G , (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    )
+                )
+            )
+            and
+            connected?((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+             = (true) .
+    --- If a parent of a node is in an error state, then the node itself must also be in an error state
+    crl [parent-of-node-is-in-error-state] :
+        < (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G > => < (A || Lv' |-> B :: L) ; (C || Lv' |-> D :: L') ; G >
+        if  (
+                (
+                    --- node is not in error state
+                    not(Lv ~iN (numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)))
+                    and
+                    --- parent is in error state
+                    (Lv' ~iN (numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)))
+                )
+                and
+                (
+                    (
+                        --- must be neighbors
+                        ((A inNL L') and (C inNL L))
+                        and
+                        --- c must be a's parent
+                        (C ~iN B)
+                    )
+                    and
+                    --- both nodes cannot be root
+                    (
+                        (not(A ~iN 0) and not(C ~iN 0))
+                    )
+                )
+            )
+            and 
+            (
+                (
+                    --- graph must be connected
+                    connected?((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    and
+                    --- graph must have root 
+                    rootExist((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                )
+                and
+                (
+                    --- all node must have valid neighbors
+                    validNeighbors((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G, (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    and
+                    --- valid node numbers
+                    nodeCorrectID((A || Lv' |-> B :: L) ; (C || Lv' |-> D :: L') ; G , (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                )
+            )
+             = (true) .
+    crl [recovery] :
+    --- if all nodes are in an error state it can always recover itself from the root
+        < (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G > => < (A || s Lv' |-> C :: L) ; (C || Lv' |-> D :: L') ; G >
+        if
+        (
+            (
+                (
+                    --- C is some neighbor of A
+                    (C inNL L) and (A inNL L')
+                )
+                and
+                (
+                    --- Node is in error state
+                    Lv ~iN numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    and
+                    --- The neighbor C is not in an error state
+                    not(Lv' ~iN numNode((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G))
+                )
+            )
+            and
+            (
+                (
+                    --- both nodes cannot be root
+                    (not(A ~iN 0) and not(C ~iN 0))
+                )
+                and
+                (
+                    (
+                        --- graph must be connected
+                        connected?((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                        and
+                        --- graph must have root 
+                        rootExist((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    )
+                    and
+                    (
+                        --- all node must have valid neighbors
+                        validNeighbors((A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G, (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                        and
+                        --- valid node numbers
+                        nodeCorrectID((A || Lv' |-> B :: L) ; (C || Lv' |-> D :: L') ; G , (A || Lv |-> B :: L) ; (C || Lv' |-> D :: L') ; G)
+                    )
+                )
+            )            
+        )
+         = (true) .
+
+endm
+
+mod SELF-STABILIZING-STOP is
+    pr SELF-STABILIZING .
+    op [_] : Graph -> State [ctor metadata "46"] .
+    var G : Graph .
+    rl [stop] : < G > => [ G ] .
+endm
+
+--- --- test rule 0
+--- search [1,1] < (0 || 0 |-> 0 :: s 0) ; (s 0 || s s 0 |-> 0 :: (0 s s 0)) ; (s s 0 || s s 0 |-> s 0 :: s 0) > =>1 S:State .
+--- --- test rule 1
+--- search [1,1] < (0 || 0 |-> 0 :: s 0) ; (s 0 || s s s 0 |-> 0 :: (0 s s 0)) ; (s s 0 || s s 0 |-> s 0 :: s 0) > =>1 S:State .
+--- --- test rule 2
+--- search [1,1] < (0 || 0 |-> 0 :: s 0) ; (s 0 || s 0 |-> 0 :: (0 s s 0)) ; (s s 0 || s s s 0 |-> s 0 :: s 0) > =>1 S:State .

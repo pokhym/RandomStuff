@@ -1,0 +1,289 @@
+set include BOOL off .
+
+--- TODO: Create a python to gneerate all the test cases for each specific number
+---  of nodes.  Afterwards, generate graphs
+--- add init conditions to rewrite
+--- TODO: http://maude.cs.uiuc.edu/maude1/manual/maude-manual-html/maude-manual_11.html
+--- Uniqueness Here!
+
+--- Booleans
+fmod IBOOL is
+    --- use Maude built-in Booleans
+    --- pr BOOL-OPS .
+    sort Bool .
+    op true : -> Bool [ctor metadata "0"] .
+    op false : -> Bool [ctor metadata "1"] .
+    op _and_ : Bool Bool -> Bool [metadata "2"] .
+    op _or_ : Bool Bool -> Bool [metadata "3"] .
+    op not(_) : Bool -> Bool [metadata "4"] .
+    vars P1 P2 : Bool .
+    eq P1 and false = false .
+    eq P1 and true = P1 .
+    eq P1 or true = true .
+    eq true or P1 = true .
+    eq false or P1 = P1 .
+    eq P1 or false = P1 .
+    eq not(false) = true .
+    eq not(true) = false .
+endfm
+
+---- Natural numbers
+fmod INAT is
+    pr IBOOL .
+    sort iNat .
+    op 0 : -> iNat [ctor metadata "5"] .
+    op s_ : iNat -> iNat [ctor metadata "6"] .
+    op p_ : iNat -> iNat [ctor metadata "7"].
+    vars N N' : iNat .
+    --- equality enrichment
+    op _~iN_ : iNat iNat -> Bool [comm metadata "8"] .
+    --- <=
+    op _<=_ : iNat iNat -> Bool [metadata "9"] .
+    --- >
+    op _>_ : iNat iNat -> Bool [metadata "10"] .
+
+    eq p 0 = 0 .
+    eq p(s N) = N .
+
+    eq N ~iN N = true .
+    eq s N ~iN s N' = N ~iN N' .
+    eq 0 ~iN s N = false .
+    eq N ~iN s N = false .
+
+    eq 0 <= 0 = true .
+    eq N <= N = true .
+    eq s N <= 0 = false .
+    eq 0 <= s N' = true .
+    eq s N <= s N' = N <= N' .
+
+    eq N > N' = not(N <= N') .
+endfm
+
+--- list of naturals
+fmod INAT-LIST is
+    pr INAT .
+    sort iNatList .
+	sort NeiNatList .
+	subsort iNat < NeiNatList .
+	subsort NeiNatList < iNatList .
+    op nil : -> iNatList [ctor metadata "12"] .
+
+    op __ : iNatList iNatList -> iNatList [ctor assoc comm prec 61 metadata "13" id: nil] .
+    op __ : iNatList NeiNatList -> NeiNatList [ctor ditto metadata "13"] .
+    op __ : NeiNatList iNatList -> NeiNatList [ctor ditto metadata "13"] .
+    op _inNL_ : iNat iNatList -> Bool [metadata "14"] .
+    op _~iNL_ : iNatList iNatList -> Bool [comm metadata "15"] .
+    op lenNL : iNatList -> iNat [metadata "16"] .
+    op uniqueNL : iNatList -> Bool [metadata "17"] .
+
+    var L L' : iNatList .
+    vars P Q R S : NeiNatList .
+    var N M : iNat .
+    eq P ~iNL P = true .
+    eq 0 ~iNL nil = false .
+    eq s(N) ~iNL nil = false .
+    eq (P Q) ~iNL 0 = false .
+    eq (P Q) ~iNL s(N) = false .
+    eq (P Q) ~iNL nil = false .
+    eq (P Q) ~iNL P = false .
+    eq (P Q) ~iNL Q = false .
+    eq (P Q) ~iNL (P R) = Q ~iNL R .
+    eq (P Q) ~iNL (R Q) = P ~iNL R .
+    eq (0 P) ~iNL (0 Q) = P ~iNL Q .
+    eq (P 0) ~iNL (Q 0) = P ~iNL Q .
+    eq (s(N) P) ~iNL (s(M) Q) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (P s(N)) ~iNL (Q s(M)) = s(N) ~iNL s(M) and P ~iNL Q .
+    eq (0 P) ~iNL (s(N) Q) = false .
+    eq (P 0) ~iNL (Q s(N)) = false .
+
+    eq N inNL nil = false .
+    eq N inNL (L N L') = true .
+    eq N inNL (L M L') = false .
+
+    eq lenNL(nil) = 0 .
+    eq lenNL(P L) = s lenNL(L) .
+
+    eq uniqueNL(nil) = true .
+    eq uniqueNL(N L) = not(N inNL L) and uniqueNL(L) .
+endfm
+
+fmod NODE is
+    pr INAT .
+    pr INAT-LIST .
+    sort Node .
+
+    --- NodeId |-> Color :: Neighbors
+    op _|->_::_ : iNat iNat iNatList -> Node [ctor metadata "18"] .
+    op getId(_) : Node -> iNat [metadata "19"] .
+    op getColour(_) : Node -> iNat [metadata "20"] .
+
+    vars N M : iNat .
+    vars L : iNatList .
+    eq getId(N |-> M :: L) = N .
+    eq getColour(N |-> M :: L) = M .
+endfm
+
+fmod GRAPH is
+    pr NODE .
+    sorts NeGraph Graph .
+    subsorts Node < NeGraph < Graph .
+
+    op mtGraph : -> Graph [ctor metadata "21"] .
+    op _;_ : Graph Graph -> Graph [ctor assoc comm metadata "22" id: mtGraph] .
+    op _;_ : Graph NeGraph -> NeGraph [ctor assoc comm metadata "22" id: mtGraph] .
+    op _;_ : NeGraph Graph -> NeGraph [ctor assoc comm metadata "22" id: mtGraph] .
+    op _in_ : Node Graph -> Bool [ctor metadata "23"] .
+    --- op color(_,_) : Graph iNat -> Graph [metadata "21"] .
+    op color(_,_,_) : Node Graph iNat -> Graph [metadata "24"] .
+    op checkNeighbors(_,_,_,_) : iNat iNat iNatList Graph -> Bool [metadata "25"] .
+
+    op gen-list : iNat -> NeiNatList [metadata "26"] .
+
+    op numNode(_) : Graph -> iNat [metadata "27"] .
+
+    vars A B C D E F : iNat .
+    vars G G' G'' G''' : Graph .
+    vars N : Node .
+    vars L L' LL LLL : iNatList .
+
+    eq numNode(mtGraph) = 0 .
+    eq numNode(N ; G) = s numNode(G) .
+
+    --- eq mtGraph ; N = N .
+    --- eq N ; mtGraph = N .
+    
+    eq gen-list(0) = (0 nil) .
+    eq gen-list(s A) = (s A) gen-list(A) .
+
+    --- eq (A |-> B :: L) in nil = false .
+    ceq (A |-> B :: L) in ((C |-> D :: LL) ; G) = true if A ~iN C = true .
+    ceq (A |-> B :: L) in ((C |-> D :: LL) ; G) = false if A ~iN C = false .
+
+    eq checkNeighbors(D, C, nil, G) = false .
+    eq checkNeighbors(D, C, L, mtGraph) = false .
+    eq checkNeighbors(D, C, nil, mtGraph) = false .
+    --- E: New color
+    --- C: Original Color
+    --- B L: Neighbor List
+    --- Rest of the graph
+    eq checkNeighbors(E, C, (B L), (A |-> D :: L'); G) = ((C ~iN D and B ~iN A) and not(E ~iN D)) .
+    ceq color((A |-> B :: L), G, D) = (A |-> D :: L) if checkNeighbors(D, B, L, G) = true .
+    eq color((A |-> B :: L), (E |-> F :: L') ; G, D) = color((A |-> B :: L), G , D) .
+    eq color((A |-> B :: L), mtGraph, D) = (A |-> B :: L) .
+    eq color(mtGraph, mtGraph, D) = mtGraph .
+    --- eq color((A |-> B :: L) ; G, D) = (A |-> B :: L) ; G .
+    
+endfm
+
+fmod COLOR-PREDS is 
+    pr GRAPH .
+    vars A B C D E F N : iNat .
+    vars L L' L'' : iNatList .
+    vars G G' : Graph .
+    vars M : Node .
+
+    op checkUniqueOne(_,_,_) : Node Graph iNatList -> Bool [metadata "28"] .
+    eq checkUniqueOne((A |-> B :: (C L)), (C |-> D :: L') ; G, L'') = 
+        (not(B ~iN D) and (C inNL L'')) and checkUniqueOne((A |-> B :: (C L)), G, L'') .
+    eq checkUniqueOne((A |-> B :: (C L)), (D |-> E :: L') ; G, L'') = 
+        true and checkUniqueOne((A |-> B :: (C L)), G, L'') .
+    eq checkUniqueOne(M, mtGraph, L'') = true .
+
+    op uniqueColor?(_,_,_) : Graph Graph iNatList -> Bool [metadata "29"] .
+    eq uniqueColor?(mtGraph, G, L') = true .
+    eq uniqueColor?(M ; G, M ; G', L') = checkUniqueOne(M, G', L') and uniqueColor?(G, M ; G', L') .
+
+    --- Check that each node has a unique value
+    --- Check that no dup neighbors
+    --- Check that all colors are in color list
+    --- Check that gen-list(maxNeighbors) = color list
+    op init?(_,_) : Graph iNatList -> Bool [metadata "35"] .
+    eq init?(G, L') = (validColors(G, L') and uniqueNeighbors(G)) and correctColorList(G, L') .
+
+    op validColors(_,_) : Graph iNatList -> Bool [metadata "30"] .
+    eq validColors(mtGraph, L') = true .
+    eq validColors((A |-> B :: L) ; G, L') = (B inNL L') and validColors(G, L') .
+
+    op maxNeighbors(_,_) : Graph iNat -> iNat [metadata "31"] .
+    eq maxNeighbors(mtGraph, N) = N .
+    ceq maxNeighbors((A |-> B :: L) ; G, N) = maxNeighbors(G, lenNL(L)) if N <= lenNL(L) = true .
+    eq maxNeighbors((A |-> B :: L) ; G, N) = maxNeighbors(G, N) .
+
+    op uniqueNeighbors(_) : Graph -> Bool [metadata "32"] .
+    eq uniqueNeighbors(mtGraph) = true .
+    eq uniqueNeighbors((A |-> B :: L) ; G) = uniqueNL(L) and uniqueNeighbors(G) .
+
+    op correctColorList(_,_) : Graph iNatList -> Bool [metadata "33"] .
+    eq correctColorList(G, L) = gen-list(maxNeighbors(G, 0)) ~iNL L .
+
+    op correctNeighbors(_) : Graph -> Bool [metadata "34"] .
+
+
+endfm
+
+mod COLOR is 
+    pr COLOR-PREDS .
+    sort State .
+    op <_|_> : Graph iNatList -> State [ctor metadata "36"] .
+    vars A B C D E F N : iNat .
+    vars L L' L'' : iNatList .
+    vars G G' : Graph .
+    vars M : Node .
+    --- rl [non-deterministically-choose-num-from-list] : < N L' > => < N > .
+    --- rl [colorRl] : < G ; M ; G' | N L' > => < color(M, G ; G', N) ; G ; G' | N L' > .
+    rl [colorRl] : < M ; G' | N L' > => < color(M, G', N) ; G' | N L' > .
+endm
+
+mod STOP-COLOR is
+    pr COLOR .
+    sort Stop .
+    op [_|_] : Graph iNatList -> State [ctor metadata "37"] .
+    var G : Graph .
+    var N : iNatList .
+    rl [stop] : < G | N > => [ G | N ] .
+endm
+--- 0,0 <-> 1,0 <-> 2,0
+red init?((0 |-> 0 :: (s 0)) ; (s 0 |-> 0 :: (0 s 0)) ; (s s 0 |-> 0 :: (s 0)), gen-list(s s 0)) .
+search [1] < (0 |-> 0 :: (s 0)) ; (s 0 |-> 0 :: (0 s 0)) ; (s s 0 |-> 0 :: (s 0)) | gen-list(s s 0) > =>+ [ G:Graph | L:iNatList ] such that true = uniqueColor?(G:Graph, G:Graph,L:iNatList) .
+
+
+---    2,0
+---   /   \
+--- 0,0 - 1,0
+red init?((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)), gen-list(s s 0)) .
+search [1] < (0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)) | gen-list(s s 0) > =>+ [ G:Graph | L:iNatList ] such that true = uniqueColor?(G:Graph, G:Graph, L:iNatList) .
+
+---    2,2
+---   /   \
+--- 0,0 - 1,1
+red init?((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> s 0 :: (0 s s 0)) ; (s s 0 |-> s s 0 :: (0 s 0)), gen-list(s s 0) ) .
+search [1] < (0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> s 0 :: (0 s s 0)) ; (s s 0 |-> s s 0 :: (0 s 0)) | gen-list(s s 0) > =>+ [ G:Graph | L:iNatList ] such that true = uniqueColor?(G:Graph, G:Graph, L:iNatList) .
+
+---    3,2
+---     |
+---    2,0
+---   /   \
+--- 0,0 - 1,0
+red init?((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0 s s 0)) ; (s s s 0 |-> s s 0 :: s s 0), gen-list(s s s 0)) .
+search [1, 5] < (0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0 s s 0)) ; (s s s 0 |-> s s 0 :: s s 0) | gen-list(s s s 0) > =>+ [ G:Graph | L:iNatList ] such that true = uniqueColor?(G:Graph, G:Graph, L:iNatList) .
+
+---    3,2                 3,2
+---     |                   |
+---    2,0                 2,3
+---   /   \               /    \
+--- 0,0 - 1,0 - 4,0     0,0 - 1,1 - 4,0
+red init?((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0 s s 0)) ; (s s s 0 |-> s s 0 :: s s 0) ; (s s s s 0 |-> 0 :: s 0), gen-list(s s s 0)) .
+search [1, 5] < (0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0 s s 0)) ; (s s s 0 |-> s s 0 :: s s 0) ; (s s s s 0 |-> 0 :: s 0) | gen-list(s s s 0) > =>+ [ G:Graph | L:iNatList ] such that true = uniqueColor?(G:Graph, G:Graph, L:iNatList) .
+
+
+
+
+
+
+--- red uniqueNeighbors((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)) ; (s s s 0 |-> s s 0 :: s s 0)) .
+
+--- red validColors((0 |-> 0 :: (s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)) ; (s s s 0 |-> s s 0 :: s s 0), 0 s 0 s s 0)  .
+
+--- red maxNeighbors((0 |-> 0 :: (0 s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)) ; (s s s 0 |-> s s 0 :: s s 0), 0) .
+
+--- red correctColorList((0 |-> 0 :: (0 s 0 s s 0)) ; (s 0 |-> 0 :: (0 s s 0)) ; (s s 0 |-> 0 :: (0 s 0)) ; (s s s 0 |-> s s 0 :: s s 0), 0 s 0 s s 0) .

@@ -1,0 +1,59 @@
+--- Probably going to need to declare a nil operator for nodes
+
+load Color.maude
+load ~/soft/maude/rltool/rltool.maude
+
+set show advisories off .
+
+(select STOP-COLOR .)
+(use tool conrew for validity on STOP-COLOR with FOFORMSIMPLIFY .)
+(use tool conrew for unsatisfiability on STOP-COLOR .)
+
+(select-rls colorRl .)
+
+(declare-vars (G:Graph) U (L:NeiNatList) U (G':Graph) U (L':NeiNatList) U (GG:NeGraph) U (LL:NeiNatList) U (N:Node) U (M:Node) .)
+
+--- (def-term-set ([ GG | LL ]) | (uniqueColor?(GG, GG, LL)) = (true) /\ (init?(GG, LL)) = (true) .)
+(def-term-set ([ G | gen-list(maxNeighbors(G,0)) ]) | (uniqueColor?(G, G, gen-list(maxNeighbors(G,0)))) = (true) /\ (init?(GG, gen-list(maxNeighbors(G,0)))) = (true) .)
+
+--- (add-goal gq-inv : (< N ; G' | LL >) | (init?(N ; G', LL)) = (true) => 
+---     ([M ; G' | LL]) | (init?(M ; G', LL)) = (true) /\ (uniqueColor?(M ; G', M ; G', LL)) = (true) \/
+---     ([N ; G' | LL]) | (init?(N ; G', LL)) = (true) /\ (uniqueColor?(N ; G', N ; G', LL)) = (true)
+    
+--- .)
+
+(add-goal gq-inv : (< N ; G' | gen-list(maxNeighbors(N ; G',0)) >) | (init?(N ; G', gen-list(maxNeighbors(N ; G',0)))) = (true) => 
+    ([M ; G' | gen-list(maxNeighbors(M ; G',0)) ]) | (init?(M ; G', gen-list(maxNeighbors(M ; G',0)))) = (true) /\ (uniqueColor?(M ; G', M ; G', gen-list(maxNeighbors(M ; G',0)))) = (true) \/
+    ([N ; G' | gen-list(maxNeighbors(N ; G',0)) ]) | (init?(N ; G', gen-list(maxNeighbors(N ; G',0)))) = (true) /\ (uniqueColor?(N ; G', N ; G', gen-list(maxNeighbors(N ; G',0)))) = (true)
+    
+.)
+
+(add-axiom aaa : (< GG | LL >) | (init?(GG, LL)) = (true) /\ (uniqueColor?(GG, GG, LL)) = (true) => ([ GG | LL ]) | (init?(GG, LL)) = (true) /\ (uniqueColor?(GG, GG, LL)) = (true) .)
+(add-axiom bbb : (< N | 0 >) | (init?(N, 0)) = (true) /\ (uniqueColor?(N, N, 0)) = (true) => ([ N | 0 ]) | (init?(N, 0))= (true) /\ (uniqueColor?(N, N, 0)) = (true) .)
+(add-axiom ccc : (< N | 0 >) | true => ([ N | 0 ]) | (validColors(N, 0)) = (true) .)
+(add-axiom ddd : (< mtGraph ; N | 0 >) | true => ([ mtGraph ; N | 0 ]) | (validColors(N, 0)) = (true) .)
+(add-axiom eee : (< N | 0 >) | true => ([ N | 0 ]) | (uniqueColor?(N, N, 0)) = (true) .)
+(add-axiom fff : (< mtGraph ; N | 0 >) | true => ([ mtGraph ; N | 0 ]) | (uniqueColor(N, N, 0)) = (true) .)
+(add-axiom ggg : (< G | 0 >) | (init?(G, 0)) = (true) /\ (uniqueColor?(G,G,0)) = (true) => ([G | 0]) | (init?(G, 0)) = (true) /\ (uniqueColor?(G,G,0)) = (true) .)
+
+(start-proof .)
+
+--- set print attribute on .
+
+(use-axioms aaa on 1 .)
+(use-axioms bbb on 1 .)
+(use-axioms ccc on 1 .)
+(use-axioms ddd on 1 .)
+(use-axioms eee on 1 .)
+(use-axioms fff on 1 .)
+(use-axioms ggg on 1 .)
+
+(case 1 on G&10:Graph by (mtGraph) U (GG:NeGraph) .)
+
+(split (< GG | LL >) by (true) = (validColors(GG, LL)) and (false) = (validColors(GG, LL)) .)
+(split (< GG | LL >) by (true) = (uniqueNeighbors(GG)) and (false) = (uniqueNeighbors(GG)) .)
+(split (< GG | LL >) by (true) = (LL ~iNL gen-list(maxNeighbors(GG,0))) and (false) =  (LL ~iNL gen-list(maxNeighbors(GG,0))) .)
+
+(auto .)
+(auto .)
+quit .
