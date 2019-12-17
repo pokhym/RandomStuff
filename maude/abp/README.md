@@ -1,5 +1,7 @@
-# BUG INFO
+# Description of Protocol
+A description of the protocol can be found in ECE584_Project_Report.pdf.
 
-    good-queues-and-inv-proof-.maude
+# Files
+abp.maude: Contains the specification of the alternating bit protocol
 
-We can subsume NeBitPacketQueue into nil:BitPacketQueue
+__-proof.maude: Contains the proof for a specific rule in the alternating bit protocol
