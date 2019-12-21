@@ -48,7 +48,8 @@ fmod STATE is
     vars T TT : Bool .
     eq init(empty,false | empty | empty,false) = true .
     eq init(S) = false .
-    eq accepted?(A,true | A | A,true) = true .
+    eq accepted?(a,true | a | a,true) = true .
+    eq accepted?(b,true | b | b,true) = true .
     eq accepted?(S) = false .
 endfm
 
