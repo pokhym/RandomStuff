@@ -1,0 +1,38 @@
+digraph TriviallyFalse {
+	label="TriviallyFalse";
+	layout=dot;
+	rankdir=LR;
+  n0 [shape=oval,color=red,label="FALSE"];
+  n1 [shape=oval,color=red,label="FALSE"];
+  n2 [shape=oval,color=red,label="FALSE"];
+  n3 [shape=oval,color=blue;label="i' = (inst 1 0 2 0)\nOR"];
+  n3 -> n1;
+  n3 -> n2;
+  n4 [shape=oval,color=blue;label="OR"];
+  n4 -> n0;
+  n4 -> n3;
+  n5 [shape=oval,color=red,label="FALSE"];
+  n6 [shape=oval,color=red,label="FALSE"];
+  n7 [shape=oval,color=blue;label="i' = (inst 3 0 2 0)\nOR"];
+  n7 -> n5;
+  n7 -> n6;
+  n8 [shape=oval,color=blue;label="i = (inst 0 0 1 0)\nOR"];
+  n8 -> n4;
+  n8 -> n7;
+  n9 [shape=oval,color=red,label="FALSE"];
+  n10 [shape=oval,color=blue;label="OR"];
+  n10 -> n8;
+  n10 -> n9;
+  n11 [shape=oval,color=red,label="FALSE"];
+  n12 [shape=oval,color=blue;label="OR"];
+  n12 -> n10;
+  n12 -> n11;
+  n13 [shape=oval,color=red,label="FALSE"];
+  n14 [shape=box,color=blue;label="Complete = (9)\nMemoryHierarchy = (8)\nViCLExpire = (7)\nViCLCreate = (6)\nStoreBuffer = (5)\nWriteback = (4)\nMemoryStage = (3)\nExecute = (2)\nDecode = (1)\nFetch = (0)\nc = (0)\nno_shared_ro_mem\nOR"];
+  n14 -> n12;
+  n14 -> n13;
+}
+// 8 scenarios
+
+// ScenarioTree unsatisfiable
+// Evaluated to Non-observable

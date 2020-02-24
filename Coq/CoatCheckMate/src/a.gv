@@ -1,0 +1,262 @@
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+
+WARNING: Shadowing term 'i'
+
+// Evaluated to Observable
+digraph G {
+	layout=neato;
+	overlap=scale;
+	splines=true;
+	label="Final";
+	n0_0_0_0_Write_normal_x_1_at_0_9 -> n1_0_0_0_Read_normal_y_0_at_0_9 [label="386:PO";constraint=false;color="blue";fontcolor="blue";];
+	n0_0_0_0_Write_normal_x_1_at_0_4 -> n0_0_0_0_Write_normal_x_1_at_0_5 [label="293:path";color="#FF006b";fontcolor="#FF006b";];
+	n0_0_0_0_Write_normal_x_1_at_0_4 -> n1_0_0_0_Read_normal_y_0_at_0_4 [label="355:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n0_0_0_0_Write_normal_x_1_at_0_5 -> n0_0_0_0_Write_normal_x_1_at_0_8 [label="294:path";color="#FFbf00";fontcolor="#FFbf00";];
+	n3_1_0_0_Read_normal_x_0_at_1_2 -> n3_1_0_0_Read_normal_x_0_at_1_3 [label="268:path";color="#2dFF00";fontcolor="#2dFF00";];
+	n3_1_0_0_Read_normal_x_0_at_1_3 -> n0_0_0_0_Write_normal_x_1_at_0_8 [label="243:fr";constraint=false;color="red";fontcolor="red";];
+	n3_1_0_0_Read_normal_x_0_at_1_3 -> n3_1_0_0_Read_normal_x_0_at_1_4 [label="269:path";color="#00FF4e";fontcolor="#00FF4e";];
+	n0_0_0_0_Write_normal_x_1_at_0_3 -> n0_0_0_0_Write_normal_x_1_at_0_4 [label="292:path";color="#00FFac";fontcolor="#00FFac";];
+	n0_0_0_0_Write_normal_x_1_at_0_3 -> n1_0_0_0_Read_normal_y_0_at_0_3 [label="347:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n0_0_0_0_Write_normal_x_1_at_0_0 -> n0_0_0_0_Write_normal_x_1_at_0_1 [label="289:path";color="#FF0012";fontcolor="#FF0012";];
+	n0_0_0_0_Write_normal_x_1_at_0_0 -> n1_0_0_0_Read_normal_y_0_at_0_0 [label="323:PO";color="blue";fontcolor="blue";];
+	n1_0_0_0_Read_normal_y_0_at_0_0 -> n1_0_0_0_Read_normal_y_0_at_0_1 [label="266:path";color="#FF009e";fontcolor="#FF009e";];
+	n2_1_0_0_Write_normal_y_1_at_1_5 -> n2_1_0_0_Write_normal_y_1_at_0_8 [label="294:path";color="#FFbf00";fontcolor="#FFbf00";];
+	n1_0_0_0_Read_normal_y_0_at_0_1 -> n1_0_0_0_Read_normal_y_0_at_0_2 [label="267:path";color="#FFab00";fontcolor="#FFab00";];
+	n1_0_0_0_Read_normal_y_0_at_0_3 -> n1_0_0_0_Read_normal_y_0_at_0_4 [label="269:path";color="#00FF4e";fontcolor="#00FF4e";];
+	n1_0_0_0_Read_normal_y_0_at_0_3 -> n2_1_0_0_Write_normal_y_1_at_0_8 [label="243:fr";constraint=false;color="red";fontcolor="red";];
+	n2_1_0_0_Write_normal_y_1_at_1_4 -> n3_1_0_0_Read_normal_x_0_at_1_4 [label="355:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n2_1_0_0_Write_normal_y_1_at_1_4 -> n2_1_0_0_Write_normal_y_1_at_1_5 [label="293:path";color="#FF006b";fontcolor="#FF006b";];
+	n2_1_0_0_Write_normal_y_1_at_1_3 -> n3_1_0_0_Read_normal_x_0_at_1_3 [label="347:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n2_1_0_0_Write_normal_y_1_at_1_3 -> n2_1_0_0_Write_normal_y_1_at_1_4 [label="292:path";color="#00FFac";fontcolor="#00FFac";];
+	n0_0_0_0_Write_normal_x_1_at_0_1 -> n0_0_0_0_Write_normal_x_1_at_0_2 [label="290:path";color="#c000FF";fontcolor="#c000FF";];
+	n0_0_0_0_Write_normal_x_1_at_0_1 -> n1_0_0_0_Read_normal_y_0_at_0_1 [label="331:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n1_0_0_0_Read_normal_y_0_at_0_2 -> n1_0_0_0_Read_normal_y_0_at_0_3 [label="268:path";color="#2dFF00";fontcolor="#2dFF00";];
+	n0_0_0_0_Write_normal_x_1_at_0_2 -> n0_0_0_0_Write_normal_x_1_at_0_3 [label="291:path";color="#2bFF00";fontcolor="#2bFF00";];
+	n0_0_0_0_Write_normal_x_1_at_0_2 -> n1_0_0_0_Read_normal_y_0_at_0_2 [label="339:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n2_1_0_0_Write_normal_y_1_at_1_0 -> n3_1_0_0_Read_normal_x_0_at_1_0 [label="323:PO";color="blue";fontcolor="blue";];
+	n2_1_0_0_Write_normal_y_1_at_1_0 -> n2_1_0_0_Write_normal_y_1_at_1_1 [label="289:path";color="#FF0012";fontcolor="#FF0012";];
+	n2_1_0_0_Write_normal_y_1_at_1_1 -> n3_1_0_0_Read_normal_x_0_at_1_1 [label="331:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n2_1_0_0_Write_normal_y_1_at_1_1 -> n2_1_0_0_Write_normal_y_1_at_1_2 [label="290:path";color="#c000FF";fontcolor="#c000FF";];
+	n2_1_0_0_Write_normal_y_1_at_1_2 -> n3_1_0_0_Read_normal_x_0_at_1_2 [label="339:PPO";constraint=false;color="darkgreen";fontcolor="darkgreen";];
+	n2_1_0_0_Write_normal_y_1_at_1_2 -> n2_1_0_0_Write_normal_y_1_at_1_3 [label="291:path";color="#2bFF00";fontcolor="#2bFF00";];
+	n3_1_0_0_Read_normal_x_0_at_1_1 -> n3_1_0_0_Read_normal_x_0_at_1_2 [label="267:path";color="#FFab00";fontcolor="#FFab00";];
+	n3_1_0_0_Read_normal_x_0_at_1_0 -> n3_1_0_0_Read_normal_x_0_at_1_1 [label="266:path";color="#FF009e";fontcolor="#FF009e";];
+	n2_1_0_0_Write_normal_y_1_at_1_9 -> n3_1_0_0_Read_normal_x_0_at_1_9 [label="386:PO";constraint=false;color="blue";fontcolor="blue";];
+	n3_1_0_0_Read_normal_x_0_at_1_9 [shape=circle;label="";pos="5,-9!";];
+	n2_1_0_0_Write_normal_y_1_at_1_9 [shape=circle;label="";pos="4,-9!";];
+	n2_1_0_0_Write_normal_y_1_at_1_2 [shape=circle;label="";pos="4,-2!";];
+	n3_1_0_0_Read_normal_x_0_at_1_1 [shape=circle;label="";pos="5,-1!";];
+	n2_1_0_0_Write_normal_y_1_at_1_1 [shape=circle;label="";pos="4,-1!";];
+	n3_1_0_0_Read_normal_x_0_at_1_0 [shape=circle;label="";pos="5,-0!";];
+	n2_1_0_0_Write_normal_y_1_at_1_0 [shape=circle;label="";pos="4,-0!";];
+	n0_0_0_0_Write_normal_x_1_at_0_2 [shape=circle;label="";pos="1,-2!";];
+	n2_1_0_0_Write_normal_y_1_at_1_3 [shape=circle;label="";pos="4,-3!";];
+	n2_1_0_0_Write_normal_y_1_at_1_4 [shape=circle;label="";pos="4,-4!";];
+	n1_0_0_0_Read_normal_y_0_at_0_2 [shape=circle;label="";pos="2,-2!";];
+	n2_1_0_0_Write_normal_y_1_at_0_8 [shape=circle;label="";pos="4,-8!";];
+	n2_1_0_0_Write_normal_y_1_at_1_5 [shape=circle;label="";pos="4,-5!";];
+	n1_0_0_0_Read_normal_y_0_at_0_1 [shape=circle;label="";pos="2,-1!";];
+	n1_0_0_0_Read_normal_y_0_at_0_0 [shape=circle;label="";pos="2,-0!";];
+	n0_0_0_0_Write_normal_x_1_at_0_1 [shape=circle;label="";pos="1,-1!";];
+	n0_0_0_0_Write_normal_x_1_at_0_0 [shape=circle;label="";pos="1,-0!";];
+	n1_0_0_0_Read_normal_y_0_at_0_3 [shape=circle;label="";pos="2,-3!";];
+	n0_0_0_0_Write_normal_x_1_at_0_3 [shape=circle;label="";pos="1,-3!";];
+	n3_1_0_0_Read_normal_x_0_at_1_4 [shape=circle;label="";pos="5,-4!";];
+	n3_1_0_0_Read_normal_x_0_at_1_3 [shape=circle;label="";pos="5,-3!";];
+	n3_1_0_0_Read_normal_x_0_at_1_2 [shape=circle;label="";pos="5,-2!";];
+	n0_0_0_0_Write_normal_x_1_at_0_8 [shape=circle;label="";pos="1,-8!";];
+	n1_0_0_0_Read_normal_y_0_at_0_4 [shape=circle;label="";pos="2,-4!";];
+	n0_0_0_0_Write_normal_x_1_at_0_5 [shape=circle;label="";pos="1,-5!";];
+	n0_0_0_0_Write_normal_x_1_at_0_4 [shape=circle;label="";pos="1,-4!";];
+	n1_0_0_0_Read_normal_y_0_at_0_9 [shape=circle;label="";pos="2,-9!";];
+	n0_0_0_0_Write_normal_x_1_at_0_9 [shape=circle;label="";pos="1,-9!";];
+	n1_0_label [label="Inst 1\nRead normal y 0\n";pos="2,0.5!";shape=none];
+	n0_0_label [label="Inst 0\nWrite normal x 1\n";pos="1,0.5!";shape=none];
+	n2_0_label [label="Inst 2\nWrite normal y 1\n";pos="4,0.5!";shape=none];
+	n3_0_label [label="Inst 3\nRead normal x 0\n";pos="5,0.5!";shape=none];
+	l3_0_label [label="Fetch";pos="3,-0!";shape=none];
+	l3_1_label [label="Decode";pos="3,-1!";shape=none];
+	l3_2_label [label="Execute";pos="3,-2!";shape=none];
+	l3_3_label [label="MemoryStage";pos="3,-3!";shape=none];
+	l3_4_label [label="Writeback";pos="3,-4!";shape=none];
+	l3_5_label [label="StoreBuffer";pos="3,-5!";shape=none];
+	l3_6_label [label="ViCLCreate";pos="3,-6!";shape=none];
+	l3_7_label [label="ViCLExpire";pos="3,-7!";shape=none];
+	l3_8_label [label="MemoryHierarchy";pos="3,-8!";shape=none];
+	l3_9_label [label="Complete";pos="3,-9!";shape=none];
+	l0_0_label [label="Fetch";pos="0,-0!";shape=none];
+	l0_1_label [label="Decode";pos="0,-1!";shape=none];
+	l0_2_label [label="Execute";pos="0,-2!";shape=none];
+	l0_3_label [label="MemoryStage";pos="0,-3!";shape=none];
+	l0_4_label [label="Writeback";pos="0,-4!";shape=none];
+	l0_5_label [label="StoreBuffer";pos="0,-5!";shape=none];
+	l0_6_label [label="ViCLCreate";pos="0,-6!";shape=none];
+	l0_7_label [label="ViCLExpire";pos="0,-7!";shape=none];
+	l0_8_label [label="MemoryHierarchy";pos="0,-8!";shape=none];
+	l0_9_label [label="Complete";pos="0,-9!";shape=none];
+}
+

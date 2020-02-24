@@ -1,0 +1,899 @@
+% Legend:
+% "/\" = AND
+% "\/" = OR
+% "~"  = NOT
+% "=>" = IMPLIES
+% "%"  = COMMENT
+%
+% Graph node = (instruction, (pipeline, stage number))
+% Graph edge = (node, node, label)
+%
+% "c" is predefined to be the core ID
+
+StageName 0 "Fetch".
+StageName 1 "Decode".
+StageName 2 "Execute".
+StageName 3 "MemoryStage".
+StageName 4 "Writeback".
+StageName 5 "StoreBuffer".
+StageName 6 "ViCLCreate".
+StageName 7 "ViCLExpire".
+StageName 8 "MemoryHierarchy".
+StageName 9 "Complete".
+
+% FIXME: When it comes to requiring IsAnyRead r /\ IsAnyWrite w
+% Should we be using an implicaiton or are we suposed to be using and
+
+% BEGIN MACROS 
+
+% NEW: From SpectreMeltdown.als
+DefineMacro "ReadViCLsExist":
+    (EdgeExists((r, ViCLCreate), (r, Execute), "")
+    /\ EdgeExists((r, Execute), (r, ViCLExpire), "")
+    /\ NodesExist [(r, ViCLCreate); (r, ViCLExpire)]).
+
+% NEW: From SpectreMeltdown.als
+% Not sure if i' is the correct thing to use
+% if we remove i' from this then we get a shadowing error
+% is this exists or forall?
+DefineMacro "NoReadViCLs":
+    (
+      ~NodesExist [(i, ViCLCreate); (i, ViCLExpire)]
+    ).
+
+% NEW: Edited from SpectreMeltdown.als
+% Not sure if we need to delete some of the predicates
+DefineMacro "STBFwd":
+exists microop "w", (
+  SameThread w i
+  /\ ProgramOrder w i
+  /\ ExpandMacro NoReadViCLs
+  /\ IsAnyWrite w 
+  /\ SameVirtualAddress w i 
+  /\ SameCore w i 
+  /\ SameData w i 
+  /\ EdgeExists ((w, (0,Execute)), (i, Execute), "")
+  /\
+  (
+    (
+      NodesExist [(w, Writeback)] /\ IsCacheable w /\ EdgeExists ((i, Execute), (w, ViCLCreate), "")
+      /\ AddEdges [((w, MemoryStage), (i,  MemoryStage), "STBFwd", "red");
+                  ((i, MemoryStage), (w, (0, ViCLCreate)), "STBFwd", "purple")]
+    )
+    \/
+    (
+      NodesExist [(w, Writeback)] /\ ~IsCacheable w /\ EdgeExists ((i, Execute), (w, MemoryHierarchy), "")
+      /\ AddEdges [((w, MemoryStage), (i,  MemoryStage), "STBFwd", "red");
+                  ((i, MemoryStage), (w, (0, MemoryHierarchy)), "STBFwd", "purple")]
+    )
+  )
+  /\ ~exists microop "w'",(
+  IsAnyWrite w' /\ SameVirtualAddress w w' /\ SameCore w w' /\
+  ProgramOrder w w' /\ ProgramOrder w' i)
+).
+
+% NEW: Edited from SpectreMeltdown.als
+% true if all stores before read have been written to the L1 Cache (Cacheable) 
+% or Main Memory (NonCacheable)
+DefineMacro "STBEmpty":
+forall microop "w", (
+  IsAnyWrite w => SameCore w i => SameVirtualAddress w i => ProgramOrder w i =>
+  (
+    (IsCacheable w /\ AddEdge ((w, (0, ViCLCreate)), (i, Execute), "STBEmpty", "purple"))
+    \/
+    (~IsCacheable w /\ AddEdge ((w, (0, MemoryHierarchy)), (i, Execute), "STBEmpty", "purple"))
+  )
+).
+
+% NEW: Added from SpectreMeltdown.als
+DefineMacro "ReadSourcedFromL1":
+    (
+    SameCore w r'
+    % NoReadViCLs r'
+    /\ ~NodesExist [(r', ViCLCreate); (r', ViCLExpire)]
+    /\ IsCacheable r'
+    /\ SameVirtualAddress w r'
+    /\ NodesExist [(w, Writeback)]
+    /\ (
+      (
+        IsCacheable w
+        /\ EdgesExist [((w, ViCLCreate), (r', Execute), "");
+                       ((r', Execute), (w, ViCLExpire), "")]
+      )
+      \/
+      (
+        exists microop "i",
+        (
+          SameCore r' i
+          /\ NodesExist[(i, ViCLCreate)]
+          /\ EdgesExist [((i, ViCLCreate), (r', Execute), "");
+                         ((r', Execute), (i, ViCLExpire), "")]
+          /\
+          (
+            (
+              IsCacheable w
+              /\ (EdgesExist [((w, ViCLExpire), (i, ViCLCreate), "");
+                           ((w, MemoryHierarchy), (i, ViCLCreate), "")])
+            )
+            \/
+            (
+              ~IsCacheable w
+              /\
+              EdgeExists ((w, MemoryHierarchy), (i, ViCLCreate), "")
+            )
+          )
+        )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+% true if read is sourced from a same-core write from Main Memory
+DefineMacro "InternalReadSourcedFromMM":
+% exists microop "w",
+% exists microop "i",
+  (
+  SameCore w r
+  /\ NodesExist [(w, Writeback)]
+  /\
+  (
+    (
+      IsCacheable r
+      /\ ExpandMacro ReadViCLsExist
+      /\ EdgeExists ((w, MemoryHierarchy), (r, ViCLCreate), "")
+      /\
+      (
+        (
+          IsCacheable w
+          /\ EdgeExists ((w, ViCLExpire), (r, ViCLCreate), "")
+        )
+        \/
+        ~IsCacheable w
+      )
+    )
+    \/
+    (
+      ~IsCacheable r /\ EdgeExists ((w, MemoryHierarchy), (r, Execute), "")
+    )
+  )
+).
+
+% NEW: Added from SpectreMeltdown.als
+% true if read is rouced from a different-core write from Main Memory
+DefineMacro "ExternalReadSourcedFromMM":
+% exists microop "w",
+% exists microop "i", 
+  (
+  ~SameCore w r
+  /\ NodesExist [(w, Writeback)]
+  /\
+  (
+    (
+      IsCacheable r
+      /\ ExpandMacro ReadViCLsExist
+      /\ EdgeExists ((w, MemoryHierarchy), (r, ViCLCreate), "")
+      /\
+      (
+        (IsCacheable w
+        /\ EdgeExists ((w, ViCLExpire), (r, ViCLCreate), ""))
+        \/
+        ~IsCacheable w
+      )
+    )
+    \/
+    (
+      ~IsCacheable r /\ EdgeExists ((w, MemoryHierarchy), (r, Execute), "")
+    )
+  )
+).
+
+% NEW: Added from SpectreMeltdown.als
+DefineMacro "SameCoreCoherence":
+exists microop "w",
+exists microop "w'",(
+  SameCore w w'
+  /\ NodesExist [(w, Writeback); (w', Writeback)]
+  /\
+  (
+    IsCacheable w /\ IsCacheable w'
+    /\ EdgesExist [((w, ViCLCreate), (w', ViCLCreate), "");
+                   ((w, ViCLExpire), (w', ViCLCreate), "");
+                   ((w, MemoryHierarchy), (w', MemoryHierarchy), "")]
+  )
+  \/
+  (
+    ~IsCacheable w /\ ~IsCacheable w'
+    /\ EdgeExists ((w, MemoryHierarchy), (w', MemoryHierarchy), "")
+  )
+).
+
+% NEW: Added From SpectreMeltdown.als
+DefineMacro "DifferentCoreCoherence":
+exists microop "w",
+exists microop "w'", (
+  ~SameCore w w' /\ NodesExist [(w, Writeback); (w', Writeback)]
+  /\ EdgeExists ((w, MemoryHierarchy), (w', MemoryHierarchy), "")
+).
+
+DefineMacro "ReadFromLatestValue":
+exists microop "w", (
+  IsAnyWrite w /\ SamePhysicalAddress w i /\ SameData w i /\
+  AddEdge ((w, (0, MemoryHierarchy)), (i,     MemoryStage ), "rf", "red") /\
+  ~(exists microop "w'",
+    IsWrite w' /\
+    SamePhysicalAddress i w' /\
+    EdgesExist [((w , (0, MemoryHierarchy)), (w', (0, MemoryHierarchy)), "");
+                ((w', (0, MemoryHierarchy)), (i ,     MemoryStage     ), "")])).
+
+DefineMacro "BeforeOrAfterEveryWriteToSamePA":
+  % Either before or after every write to the same physical address
+  forall microop "w", (
+    (IsAnyWrite w /\ SamePhysicalAddress w i) =>
+    (AddEdge ((w, (0, MemoryHierarchy)), (i,     MemoryStage     ), "wsrf", "darkred") \/
+     AddEdge ((i,     MemoryStage     ), (w, (0, MemoryHierarchy)), "fr"  , "red"))).
+
+DefineMacro "BeforeAllWrites":
+  % Read occurs before all writes to same PA & Data
+  DataFromInitialStateAtPA i /\
+  forall microop "w", (
+    IsAnyWrite w => SamePhysicalAddress w i => ~SameMicroop i w =>
+    AddEdge ((i, MemoryStage), (w, (0, MemoryHierarchy)), "fr", "red")).
+
+% BEGIN AXIOMS
+% NEW: Shared Memory Predicates
+% NEW: Added from SpectreMeltdown.als
+% We require the shared_ro_mem because Flush+Reload requires
+% both processes to share 
+%Axiom "shared_ro_mem":
+%  exists microop "i",
+%  exists microop "i'",(
+%    (OnThread 1 i /\ OnThread 2 i' /\ IsAnyRead i /\ IsAnyRead i' /\ SameVirtualTag i i' /\ ~SameMicroop i i' /\ SamePhysicalAddress i i')
+%  ).
+
+% NEW: No Shared Memory, Flush Reload Fix
+Axiom "no_shared_ro_mem":
+  exists microop "i",
+  exists microop "i'",(
+    (OnThread 1 i /\ OnThread 2 i' /\ IsAnyRead i /\ IsAnyRead i' /\ SameVirtualTag i i' /\ ~SameMicroop i i' /\ ~SamePhysicalAddress i i')
+  ).
+
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "FenceSC_order":
+  forall microop "w",
+  forall microop "f", (
+    IsAnyWrite w /\ IsAnyFence f =>
+    (
+      SameCore 0 c /\ ProgramOrder w f
+        \/ (EdgeExists((w,Complete),(f,Fetch),"") => EdgeExists((w,MemoryHierarchy),(f,Execute),""))
+      /\
+      EdgeExists((w,MemoryHierarchy),(f,Execute),"")) =>
+        SameCore 0 c /\ ProgramOrder w f
+        \/ (EdgeExists((w,Complete),(f,Fetch),"")
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "one_flush_edge":
+  forall microop "w",
+  forall microop "r", (
+    IsAnyWrite w /\ IsAnyRead r =>
+    (
+      ~(EdgeExists((w,ViCLCreate),(r,Execute),"") /\ EdgeExists((w,MemoryHierarchy),(r,Execute),""))
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "flush_implies_squash":
+  forall microop "w",
+  forall microop "r",(
+    IsAnyWrite w /\ IsAnyRead r =>
+    (
+      (EdgeExists((w, ViCLCreate),(r, Execute),"") => IsCacheable w /\ NodesExist[(w, Writeback)])
+      /\
+      (EdgeExists((w, MemoryHierarchy),(r, Execute),"") => ~IsCacheable w /\ NodesExist[(w, Writeback)])
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "constrain_urf":
+  forall microop "w",
+  forall microop "r", (
+    IsAnyRead r /\ IsAnyWrite w =>
+    ~EdgesExist[
+      ((w, MemoryHierarchy),(r, ViCLCreate),""); ((w, MemoryHierarchy),(r, Execute),"");
+      ((w, MemoryHierarchy),(r, ViCLCreate),""); ((w, ViCLCreate),(r, Execute),"");
+      ((w, MemoryHierarchy),(r, ViCLCreate),""); ((w, Execute),(r, Execute),"");
+      ((w, ViCLCreate),(r, Execute),""); ((w, MemoryHierarchy),(r, Execute),"");
+      ((w, ViCLCreate),(r, Execute),""); ((w, Execute),(r, Execute),"");
+      ((w, Execute),(r, Execute),""); ((w, MemoryHierarchy),(r, Execute),"");      
+      ((w, Execute),(r, Execute),""); ((w, ViCLCreate),(r, Execute),"")
+    ]
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "CFLUSH_order":
+  forall microop "f",
+  forall microop "e", (
+    (
+      IsFlush f /\ IsCacheable e  /\ ~IsFlush e =>
+      (
+        SameVirtualAddress e f
+        /\ SameCore 0 c
+        /\ NodesExist[(e, ViCLCreate)]
+        /\ 
+        (
+          (ProgramOrder e f /\ SameThread e f)
+          \/ (~SameThread e f /\ EdgeExists((e, Complete),(f,Fetch),""))
+        )
+        => EdgeExists((e, ViCLExpire),(f, Execute),"")
+      )
+      /\
+      (
+        EdgeExists((e, ViCLExpire),(f, Execute),"") =>
+        (
+          SameVirtualAddress e f
+          /\ SameCore 0 c
+          /\ NodesExist[(e, ViCLCreate)]
+          /\ (
+            (ProgramOrder e f /\ SameThread e f)
+          \/ (~SameThread e f /\ EdgeExists((e, Complete),(f,Fetch),""))
+          )
+        )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "DataFromInitialMM":
+  forall microop "r", 
+  forall microop "w",
+  exists microop "rr", (
+    IsAnyRead rr /\ IsAnyWrite w /\ IsAnyRead r /\ DataFromFinalStateAtPA r /\ IsCacheable r =>
+    (
+      % STBEmpty[r]
+      (
+        (IsCacheable w /\ EdgeExists((w, ViCLCreate), (r, Execute), ""))
+        \/ ~(IsCacheable w /\ EdgeExists((w, MemoryHierarchy), (r, Execute), ""))
+      )
+      /\
+      (
+        % ReadViCLsExist[r]
+        (
+          EdgeExists((r, ViCLCreate), (r, Execute), "") /\ EdgeExists((r, Execute), (r, ViCLExpire), "")
+          /\ NodesExist[(r, ViCLCreate); (r, ViCLExpire)]
+        )
+        \/
+        (
+          % NoReadViCLs[r]
+          ~(NodesExist[(r, ViCLCreate); (r, ViCLExpire)])
+          /\ SameCore 0 c /\ SameVirtualAddress r rr /\ DataFromInitialStateAtPA rr
+          /\ NodesExist[(rr, ViCLCreate)] /\ EdgeExists((rr, ViCLCreate), (r, Execute), "")
+          /\ EdgeExists((r, Execute), (rr, ViCLExpire), "")
+        )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+% TODO: This needs ~SameEvent I THINK (SameUop)
+Axiom "diff_reads_sourced_initial_l1":
+  forall microop "r",
+  forall microop "r'", 
+  exists microop "r''",
+  exists microop "w", (
+    ~(SameMicroop r r') /\ IsAnyRead r /\ IsAnyRead r' /\ IsAnyRead r'' /\ IsAnyWrite w =>
+    EdgeExists((r, ViCLCreate),(r', Execute),"") /\ EdgeExists((r', ViCLCreate),(r, ViCLExpire),"") =>
+    SameVirtualAddress r r' 
+    /\ 
+    (
+      (
+        DataFromInitialStateAtPA r /\ DataFromInitialStateAtPA r'
+      )
+      \/
+      (
+          NodesExist[(w, Writeback)]
+          /\ NodesExist[(r, ViCLCreate)]
+          /\ ~NodesExist[(r', ViCLCreate)]
+          % ReadSourcedFromL1 w r'
+          /\
+          (
+            SameCore 0 c /\ ~NodesExist[(r, ViCLCreate);(r, ViCLExpire)] /\ IsCacheable r /\ SameVirtualAddress w r
+            /\ NodesExist[(w, Writeback)] /\
+            (
+              (
+                IsCacheable w /\ EdgeExists((w, ViCLCreate),(r, Execute),"") /\ EdgeExists((r, Execute),(w, ViCLExpire),"")
+              )
+              \/
+              (
+                SameCore 0 c /\ NodesExist[(r'', ViCLCreate)] /\ EdgeExists((r'', ViCLCreate),(r, Execute),"") /\ EdgeExists((r, Execute),(r'', ViCLExpire),"")
+                /\
+                (
+                  (IsCacheable w /\ EdgeExists((w, ViCLExpire),(r'', ViCLCreate),"") /\ EdgeExists((w, MemoryHierarchy),(r'', ViCLCreate),""))
+                  \/
+                  (~IsCacheable w /\ EdgeExists((w, MemoryHierarchy), (r'', ViCLCreate), ""))
+                )
+              )
+            )
+          )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "read_miss_vicls":
+  forall microop "r", 
+  exists microop "w",
+  (
+    IsAnyRead r /\ IsAnyWrite w =>
+    EdgeExists((r, ViCLCreate),(r, Execute),"") /\ EdgeExists((r, Execute),(r, ViCLExpire),"") =>
+    (
+      DataFromInitialStateAtPA r
+      \/ % InternalReadSourcedFromMM w r
+      (
+        SameCore 0 c /\ NodesExist[(w, Writeback)] /\
+        (
+          IsCacheable r /\
+          % ReadViCLsExist r
+          (
+            EdgeExists((r, ViCLCreate), (r, Execute), "") /\ EdgeExists((r, Execute), (r, ViCLExpire), "")
+            /\ NodesExist[(r, ViCLCreate); (r, ViCLExpire)]
+          )
+          /\ EdgeExists((w, MemoryHierarchy), (r, ViCLCreate), "")
+          /\
+          (
+            (IsCacheable w /\ EdgeExists((w, ViCLExpire),(r, ViCLCreate),""))
+            \/ ~IsCacheable w
+          )
+        )
+      )
+      \/ % ExternalReadSourcedFromMM w r
+      (
+        ~SameCore 0 c /\ NodesExist[(w, Writeback)] /\
+        (
+          (
+            IsCacheable r /\ 
+            % ReadViCLsExist r
+            (
+              EdgeExists((r, ViCLCreate), (r, Execute), "") /\ EdgeExists((r, Execute), (r, ViCLExpire), "")
+              /\ NodesExist[(r, ViCLCreate); (r, ViCLExpire)]
+            )
+            /\ EdgeExists((w, MemoryHierarchy),(r, ViCLCreate),"")
+          )
+          \/
+          (
+            ~IsCacheable r /\ EdgeExists((w, MemoryHierarchy), (r, Execute), "")
+          )
+        )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+% Single writer multiple reader?
+Axiom "SWMR":
+  forall microop "w",
+  forall microop "rw",
+  (
+    IsAnyWrite w /\ (IsAnyWrite rw \/ IsAnyRead rw) =>
+    ~(SameMicroop w rw) /\ SamePhysicalAddress w rw /\ NodesExist[(rw, ViCLCreate); (w, ViCLCreate)] =>
+    EdgeExists((rw, ViCLExpire),(w, ViCLCreate),"") \/ EdgeExists((w, ViCLCreate),(rw,ViCLCreate),"")
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+% Single writer multiple reader? Cache?
+Axiom "SWMRidx":
+  forall microop "e",
+  forall microop "ee",
+  (
+    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyRead ee \/ IsAnyWrite ee) => 
+    (
+      ~(SameMicroop e ee) /\ SameCore 0 c
+      % FIXME: SameVirtualTag is same as SameIndexL1?
+      /\ SameVirtualTag e ee
+      /\ NodesExist[(e, ViCLCreate); (ee, ViCLCreate)]
+    )
+      =>
+      EdgeExists((e, ViCLCreate),(ee, ViCLCreate),"")
+      \/
+      EdgeExists((ee, ViCLCreate),(e, ViCLCreate),"")
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "L1ViCLNoDups":
+  forall microop "e",
+  forall microop "ee",
+  (
+    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyWrite ee \/ IsAnyRead ee) =>
+    (
+      (
+        ~(SameMicroop e ee) /\ SameCore 0 c
+        % FIXME: SameVirtualTag is same as SameIndexL1?
+        /\ (SameVirtualTag e ee \/ SamePhysicalAddress e ee) /\ NodesExist[(e, ViCLCreate); (ee, ViCLCreate)]
+      )
+    ) =>
+    EdgeExists((e, ViCLExpire), (ee, ViCLCreate), "")
+    \/
+    EdgeExists((ee, ViCLExpire), (e, ViCLCreate), "")
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "same_core_read_vicls":
+  forall microop "r",
+  forall microop "rr",
+  (
+    IsAnyRead r /\ IsAnyRead rr /\ ~(SameMicroop r rr)
+    =>
+    (
+      EdgeExists((r, ViCLExpire), (rr, ViCLCreate), "")
+      =>
+      SameCore 0 c
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als/
+Axiom "swmr_or_conflict":
+  forall microop "e",
+  forall microop "ee",
+  (
+    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyRead ee \/ IsAnyWrite ee) 
+    =>
+    (
+      EdgeExists((e, ViCLCreate),(ee, ViCLCreate),"")
+      =>
+      IsAnyWrite e \/ (SameCore e ee /\ SameVirtualTag e ee)
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "swmr_nodups_or_conflict":
+  forall microop "e",
+  forall microop "ee",
+  (
+    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyRead ee \/ IsAnyWrite ee) 
+    =>
+    (
+      EdgeExists((e, ViCLExpire), (ee, ViCLExpire), "") =>
+      SamePhysicalAddress e ee \/ (SameCore 0 c /\ SameVirtualTag e ee)
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "swmr_nodups_or_conflict":
+  forall microop "e",
+  forall microop "ee",
+  (
+    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyRead ee \/ IsAnyWrite ee) 
+    =>
+    (
+      EdgeExists((e, ViCLExpire), (ee, ViCLExpire), "")
+      =>
+      SamePhysicalAddress e ee \/ (SameCore e ee /\ SameVirtualTag e ee)
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "SingleReadSource":
+  forall microop "r",
+  exists microop "rr",
+  exists microop "w",
+  (
+    IsAnyRead r /\ IsAnyRead rr /\ IsAnyWrite w => 
+    (
+      ~(EdgeExists((rr, ViCLCreate),(r, Execute), "") /\ EdgeExists((w, ViCLCreate),(r, Execute), ""))
+      /\ ~(EdgeExists((rr, ViCLCreate), (r, Execute), "") /\ EdgeExists((w, MemoryHierarchy), (r, Execute), "")
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "constrain_vicls_involving_writes":
+  forall microop "r",
+  forall microop "w",
+  (
+    IsAnyRead r /\ IsAnyWrite w =>
+    EdgeExists((r, Execute), (w, ViCLExpire), "") =>
+    EdgeExists((w, ViCLCreate), (r, Execute), "") /\
+    % ReadSourcedFromL1 w r
+    (
+      SameCore 0 c /\ ~NodesExist[(r, ViCLCreate);(r, ViCLExpire)] /\ IsCacheable r /\ SameVirtualAddress w r
+      /\ NodesExist[(w, Writeback)] /\
+      (
+        (
+          IsCacheable w /\ EdgeExists((w, ViCLCreate),(r, Execute),"") /\ EdgeExists((r, Execute),(w, ViCLExpire),"")
+        )
+        \/
+        (
+          SameCore 0 c /\ NodesExist[(r'', ViCLCreate)] /\ EdgeExists((r'', ViCLCreate),(r, Execute),"") /\ EdgeExists((r, Execute),(r'', ViCLExpire),"")
+          /\
+          (
+            (IsCacheable w /\ EdgeExists((w, ViCLExpire),(r'', ViCLCreate),"") /\ EdgeExists((w, MemoryHierarchy),(r'', ViCLCreate),""))
+            \/
+            (~IsCacheable w /\ EdgeExists((w, MemoryHierarchy), (r'', ViCLCreate), ""))
+          )
+        )
+      )
+    )
+  ).
+
+% NEW: Added from SpectreMeltdown.als
+%Axiom "constrain_uvicl_source":
+%  forall microop "r",
+%  forall microop "e",
+%  forall microop "rr",
+%  (
+%    IsAnyRead r /\ (IsAnyRead e \/ IsAnyWrite e) =>
+%    EdgeExists((r, ViCLCreate),(e, Execute),"") =>
+%    IsAnyRead rr =>
+%    ~(~(SameMicroop r rr) /\ ~EdgeExists((rr, ViCLCreate), (e, Execute), ""))
+%  ).
+
+% NEW: Added from SpectreMeltdown.als
+%Axiom "constrain_uvicl_execute":
+%  forall microop "e",
+%  forall microop "ee",
+%  forall microop "eee",
+%  (
+%    (IsAnyRead e \/ IsAnyWrite e) /\ (IsAnyRead ee \/ IsAnyWrite ee) =>
+%    EdgeExists((ee, Execute), (e, ViCLExpire), "") =>
+%    (IsAnyRead eee \/ IsAnyWrite eee) =>
+%    ~(~(SameMicroop e eee) /\ EdgeExists((ee, Execute),(eee, ViCLExpire),""))
+%  ).
+
+% NEW: Added from SpectreMeltdown.als
+%Axiom "map_dep_to_udep":
+%  forall microop "e",
+%  forall microop "ee",
+%  (
+%    % Ignore saying if something is a read/write/whatever
+%    % A "dep" is part of the Read sig that is either a memoryEvent or a cacheflush
+%    % HasDependency from checkmate.als is saying that
+%    % There exists an edge from a read/flush to another read/flush
+%    (
+%      ~(SameMicroop e ee) => (HasDependency po e ee \/ HasDependency rf e ee) => EdgeExists((e, Execute),(ee, Execute),"")
+%    )
+%    /\
+%    (
+%      ~(SameMicroop e ee) => EdgeExists((e, Execute),(ee, Execute),"") => (HasDependency po e ee \/ HasDependency rf e ee)
+%    )
+%  ).
+
+% NEW: Added from SpectreMeltdown.als
+%Axiom "dep_vicl_source":
+%  forall microop "e",
+%  forall microop "ee",
+%  (
+%    (~(SameMicroop e ee) /\ (IsFlush e \/ IsAnyRead e) /\ (IsFlush ee \/ IsAnyRead ee)
+%    /\ NodesExist[(e, ViCLCreate);(ee, ViCLCreate)]
+%    => EdgeExists((e, ViCLCreate),(ee, ViCLCreate),""))
+%    /\
+%    (EdgeExists((e, ViCLCreate),(ee, ViCLCreate),"")
+%    => ~(SameMicroop e ee) /\ (IsFlush e \/ IsAnyRead e) /\ (IsFlush ee \/ IsAnyRead ee)
+%    /\ NodesExist[(e, ViCLCreate);(ee, ViCLCreate)])
+%  ).
+
+% NEW: Added from SpectreMeltdown.als TODO:
+% Axiom "no_shared_attacker_memory":
+% Axiom "no_shared_or_ro_victim_memory":
+
+% NEW: Added from SpectreMeltdown.als
+% Reorient the predicate as an axiom
+Axiom "flush_reload":
+  exists microop "f", exists microop "i0", exists microop "i2", exists microop "i3",
+  (
+    IsFlush f /\ IsAnyRead i2 /\ IsAnyRead i0 /\ IsAnyRead i3
+    /\ ~SameMicroop f i2 /\ ~SameMicroop i2 i3 /\ ~SameMicroop i3 i0
+    /\ OnThread 2 f /\ OnThread 2 i2 /\ OnThread 2 i3 /\ OnThread 1 i0
+    /\ IsCacheable i0 /\ IsCacheable i2 /\ IsCacheable i3
+    /\ NodesExist[(i2, ViCLCreate); (i2, ViCLExpire)]
+    /\ EdgesExist[
+        ((i2, ViCLCreate), (i2, ViCLExpire), "FLRE", "orange");
+        ((i2, ViCLExpire), (f, Execute), "FLRE", "orange");
+        ((f, Complete), (i0, Fetch), "FLRE", "orange");
+        ((i0, ViCLCreate), (i3, Execute), "FLRE", "orange");
+        ((i3, Execute), (i0, ViCLExpire), "FLRE", "orange")
+    ]
+  ).
+%Axiom "flush_reload":
+%  forall microop "a", forall microop "aa", forall microop "f", exists microop "e", exists microop "ee", 
+%  exists microop "eee", exists microop "eeee", exists microop "eeeee", exists microop "eeeeee",
+%  (
+%    IsAnyRead aa => NodesExist[(a, Writeback);(aa,Writeback);(f,Writeback)]
+%    /\ SameVirtualAddress a aa /\ ProgramOrder a aa /\ ProgramOrder a f /\ ProgramOrder f aa
+%    /\ ~(ProgramOrder a e /\ ProgramOrder e f)
+%    /\ ~(EdgeExists((a, Complete), (e, Fetch), "")) /\ ~(EdgeExists((e, Complete), (f, Fetch), ""))
+%    /\ IsCacheable a
+%    /\ NodesExist[(a, ViCLCreate)]
+%    /\ IsCacheable aa
+%    /\ ~NodesExist[(aa, ViCLCreate)]
+%    /\ ~EdgeExists((a, ViCLCreate),(aa, Execute),"") /\ ~EdgeExists((aa, Execute),(a, ViCLExpire),"")
+%    /\
+%    (
+%      (IsFlush f /\ SameVirtualAddress a f)
+%      \/
+%      (
+%        IsAnyRead f /\ ~SamePhysicalAddress a f /\ EdgeExists((a, ViCLExpire), (f, ViCLCreate), "")
+%        \/
+%        IsAnyWrite f /\ ~SamePhysicalAddress a f /\ EdgeExists((a, ViCLExpire), (f, ViCLCreate), "")
+%      )
+%    )
+%    /\ ~(ProgramOrder f e /\ ProgramOrder e aa /\ SameVirtualAddress e aa /\ IsCacheable ee /\ NodesExist[(e,Writeback)])
+%    /\ ~(ProgramOrder e a) /\ ~(ProgramOrder aa e) /\ ~(EdgeExists((e, Complete), (a, Fetch), "")) /\ ~(EdgeExists((aa, Fetch), (e, Complete), ""))
+%  ).
+
+% NEW: Added from checkmate.als
+% We do not need to add an acyclic Axiom
+% this is because the OCaml and Coq code already checks for this
+
+% NEW: Added from checkmate.als
+% uhb_inter only relates different events on the same core
+%Axiom "uhb_inter_rel_only_same_core":
+%  forall microop "e",
+%  forall microop "ee",
+%  (
+%    SameCore e ee
+%  ).
+
+Axiom "WriteIsBeforeFinal":
+  forall microop "w",
+  OnCore c w => (
+    forall microop "w'",
+    IsAnyWrite w => IsAnyWrite w' => SamePhysicalAddress w w' =>
+       ~SameMicroop w w' => DataFromFinalStateAtPA w' =>
+    AddEdge ((w, (0, MemoryHierarchy)), (w', (0, MemoryHierarchy)), "ws_final", "red")).
+
+Axiom "WriteSerialization":
+SameCore 0 c =>
+forall microops "i1", forall microops "i2",
+(~SameMicroop i1 i2) => IsAnyWrite i1 => IsAnyWrite i2 => SamePhysicalAddress i1 i2 => (
+(AddEdge ((i1, (0, MemoryHierarchy)), (i2, (0, MemoryHierarchy)), "ws", "red")) \/
+(AddEdge ((i2, (0, MemoryHierarchy)), (i1, (0, MemoryHierarchy)), "ws", "red"))).
+
+Axiom "Reads":
+forall microops "i",
+OnCore c i =>
+IsAnyRead i =>
+(
+  AddEdges [((i, Fetch),       (i, Decode),      "path");
+            ((i, Decode),      (i, Execute),     "path");
+            ((i, Execute),     (i, MemoryStage), "path");
+            ((i, MemoryStage), (i, Writeback),   "path");
+            ((i, Writeback), (i, Complete),   "path")]
+  \/
+  AddEdges [((i, Fetch),       (i, Decode),      "path");
+            ((i, Decode),      (i, Execute),     "path");
+            ((i, Execute),     (i, MemoryStage), "path");
+            ((i, MemoryStage), (i, Writeback),   "path");
+            ((i, Writeback), (i, Complete),   "path")]
+)
+/\
+(
+  KnownData i
+  =>
+  (
+    ExpandMacro STBFwd
+    \/
+    (
+      ExpandMacro STBEmpty /\
+      ExpandMacro BeforeOrAfterEveryWriteToSamePA /\
+      (ExpandMacro BeforeAllWrites \/ ExpandMacro ReadFromLatestValue)
+    )
+  )
+).
+
+Axiom "Writes":
+forall microops "i",
+OnCore c i =>
+IsAnyWrite i =>
+AddEdges [((i, Fetch      ), (i,     Decode          ), "path");
+          ((i, Decode     ), (i,     Execute         ), "path");
+          ((i, Execute    ), (i,     MemoryStage     ), "path");
+          ((i, MemoryStage), (i,     Writeback       ), "path");
+          ((i, Writeback  ), (i,     StoreBuffer     ), "path");
+          ((i, StoreBuffer), (i, (0, MemoryHierarchy)), "path");
+          ((i, (0, MemoryHierarchy)), (i, Complete), "path")].
+
+Axiom "mfence":
+forall microops "f",
+OnCore c f =>
+IsAnyFence f =>
+AddEdges [((f, Fetch       ), (f,     Decode      ), "path");
+          ((f, Decode      ), (f,     Execute     ), "path");
+          ((f, Execute     ), (f,     MemoryStage ), "path");
+          ((f, MemoryStage ), (f,     Writeback   ), "path")]
+/\ (
+  forall microops "w",
+  ((IsAnyWrite w /\ SameCore w f /\ ProgramOrder w f) =>
+     AddEdge ((w, (0, MemoryHierarchy)), (f,     Execute ), "mfence", "orange"))).
+
+% TODO: Also need to add a path for flush here
+Axiom "flush":
+  forall microop "f",
+  (
+    OnCore c f =>
+    IsFlush f =>
+    AddEdges [((f, Fetch       ), (f,     Decode      ), "path");
+          ((f, Decode      ), (f,     Execute     ), "path");
+          ((f, Execute     ), (f,     Complete ), "path")]
+  ).
+
+Axiom "RMW":
+forall microop "w",
+IsAnyWrite w => AccessType RMW w =>
+(forall microops "i2", ProgramOrder w i2 => IsAnyRead i2 =>
+  AddEdge ((w, (0, MemoryHierarchy)), (i2, MemoryStage), "rmw", "orange")) /\
+(exists microop "r", ConsecutiveMicroops r w /\ IsAnyRead r /\ AccessType RMW r /\
+  ~exists microop "w'", IsAnyWrite w' /\ SamePhysicalAddress w w' /\
+    EdgesExist [((r ,     MemoryStage     ), (w', (0, MemoryHierarchy)), "");
+                ((w', (0, MemoryHierarchy)), (w , (0, MemoryHierarchy)), "")]).
+
+Axiom "PO/Fetch":
+forall microops "i1",
+forall microops "i2",
+(OnCore c i1 /\ OnCore c i2 /\ ProgramOrder i1 i2) =>
+AddEdge ((i1, Fetch), (i2, Fetch), "PO", "blue").
+
+Axiom "Decode_stage_is_in-order":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, Fetch), (i2, Fetch), "") =>
+NodesExist [(i1, Decode); (i2, Decode)] =>
+AddEdge ((i1, Decode), (i2, Decode), "PPO", "darkgreen").
+
+Axiom "Execute_stage_is_in-order":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, Decode), (i2, Decode), "") =>
+NodesExist [(i1, Execute); (i2, Execute)] =>
+AddEdge ((i1, Execute), (i2, Execute), "PPO", "darkgreen").
+
+Axiom "Memory_stage_is_in-order":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, Execute), (i2, Execute), "") =>
+NodesExist [(i1, MemoryStage); (i2, MemoryStage)] =>
+AddEdge ((i1, MemoryStage), (i2, MemoryStage), "PPO", "darkgreen").
+
+Axiom "Writeback_stage_is_in-order":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, MemoryStage), (i2, MemoryStage), "") =>
+NodesExist [(i1, Writeback);  (i2, Writeback)] =>
+AddEdge ((i1, Writeback), (i2, Writeback), "PPO", "darkgreen").
+
+Axiom "STB_FIFO":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, Writeback), (i2, Writeback), "") =>
+NodesExist [(i1, StoreBuffer); (i2, StoreBuffer)] =>
+AddEdge ((i1, StoreBuffer), (i2, StoreBuffer), "PPO", "darkgreen").
+
+% NEW: edited to be same as SpectreMeltdown.als
+Axiom "STB_OneAtATime":
+forall microops "i1",
+forall microops "i2",
+OnCore c i1 => OnCore c i2 =>
+EdgeExists ((i1, StoreBuffer), (i2, StoreBuffer), "") =>
+(
+  ~IsCacheable i1 /\ NodesExist [(i1, (0, MemoryHierarchy)); (i2, StoreBuffer)] =>
+    AddEdge ((i1, (0, MemoryHierarchy)), (i2, StoreBuffer), "PPO", "darkgreen")
+) \/ (
+  IsCacheable i1 /\ NodesExist [(i1, (0, ViCLCreate)); (i2, StoreBuffer)]
+  /\ ~EdgeExists ((i1, MemoryHierarchy), (i2, StoreBuffer), "") =>
+    AddEdge ((i1, (0, ViCLCreate)), (i2, StoreBuffer), "PPO", "darkgreen")
+).
+
+% NEW: Added from SpectreMeltdown.als
+Axiom "Complete_stage_is_in-order":
+forall microops "i1",
+forall microops "i2",
+(OnCore c i1 /\ OnCore c i2 /\ ProgramOrder i1 i2) =>
+EdgeExists ((i1, Fetch), (i2, Fetch), "") =>
+AddEdge ((i1, Complete), (i2, Complete), "PO", "blue").
+
+% NEW: Threading and process scheduling

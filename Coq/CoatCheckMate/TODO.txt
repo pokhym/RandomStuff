@@ -1,0 +1,66 @@
+LEGEND:
+POSSIBLY_DONE: Represents a possibly completed task
+DONE: Represents a completed task for sure
+IN_PROGRESS: Represents a task that is currently being worked on
+
+
+TODO:
+- map_dep_to_udep, dep_vicl_source: These appear to be broken
+- Add a "clflush" axiom like the "Writes, Reads, mfence, RMW" ones
+- Should flush-reload axioms be axioms or should this be written into a litmus test
+- Write the flush reload litmus test
+- Re-read and double check all the other predicates and axioms
+- Double check that there are no more axioms to add from SpectreMeltdown.als
+    - Add the missing axioms (? not sure if there are any that are applicable) from checkmate.als
+
+**************IGNORE EVERYTHING BELOW******************
+
+Concrete List of Things
+- IN_PROGRESS Add flush
+    - Coq Code needs to have micro-op flush
+    - Instruction.v
+    - FOLPredicate.v
+- IN_PROGRESS Edit FiveStageWithCache
+    - Do we need to add IsCacheable? If so this probably requires editing Coq
+    for the definition of VA
+    - Need to double check NEWs and OLDs for compatibility between stages
+    - Need to check if we need to add more exists for example IsCachable w i
+        - Need to have both w and i as exists?
+- IN_PROGRESS Flush+Reload Litmus test
+- IN_PROGRESS New predicates
+    - Test IsCacheable
+    - Test IsFlush (something like that)
+- Permissions/Read/Write For attacker and victim? How to extend
+- Process
+
+
+Check:
+    - FiveStageTSOCC.uarch
+        - extra predicates?
+            - Cacheability
+        - Extra axioms?
+            - In order
+
+Things todo
+    - Notion of processes?
+        - Flush reload needs to occur in the same thread?
+        - No CheckMate paper clearly says
+        - The litmus test is extracted from the top of (e)and contains 
+        two threads from different (attacker andvictim)  processes  that  are  
+        time-multiplexed  on  thesame physical core.
+    - Flush and reload litmus test
+    - FiveStageWithCache.uarch
+        - Must have cache
+        - Alternatively check if FiveStageTSOCC.uarch works?
+            - It seems to use VICL some cache thing
+                - Delete the L2 in the uarch
+                - Port the CheckMate flush reload example in
+                - Implement flush
+                    - POSSIBLY_DONE
+            - Needs to have memory hierarchy as we actually need to load from main
+            memory after a flush
+            - Cache line downgrade needs to be removed since we are only working
+            on one core?
+
+Unsure todo
+    - Does there need to be any changes to FOL.v and FOLPredicate.v?
